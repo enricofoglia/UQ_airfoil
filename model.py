@@ -1,0 +1,228 @@
+import copy
+
+import torch
+from torch import nn
+from torch import Tensor
+
+import torch_scatter
+
+import torch_geometric as pyg
+from torch_geometric.nn.aggr import Aggregation, SoftmaxAggregation
+from torch_geometric.data import Data
+from torch_geometric.nn.conv import GCNConv
+
+from typing import (
+    List, 
+    Tuple,
+    Union, 
+    Optional,
+    Callable,
+    Dict,
+    Any
+    )
+
+class MiniMLP(nn.Module):
+    def __init__(self, inputs: int, targets: int, hidden: List[int]) -> None:
+        super().__init__()
+
+        layers = []
+        
+        # Add the input layer
+        prev_dim = inputs
+        for h_dim in hidden:
+            layers.append(nn.Linear(prev_dim, h_dim))
+            prev_dim = h_dim
+        
+        # Add the output layer
+        layers.append(nn.Linear(prev_dim, targets))
+        
+        # Convert the list of layers into a ModuleList
+        self.layers = nn.ModuleList(layers)
+        self.activation = nn.LeakyReLU()
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        for layer in self.layers[:-1]:
+            x = self.activation(layer(x))
+        return self.layers[-1](x)
+    
+class GNNBlock(pyg.nn.conv.MessagePassing):
+    def __init__(
+            self,
+            node_features:int,
+            edge_features:int,
+            aggr: Optional[Union[str, List[str], Aggregation]] = 'sum',
+            *,
+            aggr_kwargs: Optional[Dict[str, Any]] = None,
+            flow: str = "source_to_target",
+            node_dim: int = -2,
+            decomposed_layers: int = 1):
+        super().__init__(aggr=aggr, aggr_kwargs=aggr_kwargs, flow=flow, node_dim=node_dim,decomposed_layers=decomposed_layers)
+
+        self.node_features = node_features
+
+        self.udpate_edge = MiniMLP(edge_features+2*node_features, edge_features, [edge_features])
+        self.udpate_node = MiniMLP(edge_features+node_features, node_features, [node_features])
+
+    def message(self, x_i, x_j, edge_attr):
+        x = torch.cat((x_i, x_j, edge_attr), dim=-1)
+        x = self.udpate_edge(x)
+        return x
+    
+    def aggregate(self, inputs, index,dim_size=None):
+        out = torch_scatter.scatter(inputs, index, dim=self.node_dim,dim_size=dim_size, reduce='mean')
+        return (inputs, out)
+    
+    def forward(self, x, edge_index, edge_attr):
+        edge_out, aggr = self.propagate(edge_index, x=(x,x), edge_attr = edge_attr)
+        node_out = self.udpate_node(torch.cat((x, aggr), dim=-1))
+        edge_out = edge_out + edge_attr
+        node_out = node_out + x 
+        return node_out, edge_out
+
+
+class EncodeProcessDecode(nn.Module):
+    def __init__(
+            self,
+            node_features:int,
+            edge_features:int,
+            hidden_features:int,
+            n_blocks:int,
+            out_nodes:int,
+            out_glob:int,
+           )->None:
+        super().__init__()
+
+        self.kind = 'simple_gnn'
+
+        self.encoder_nodes = MiniMLP(node_features, hidden_features, [hidden_features])
+        self.encoder_edges = MiniMLP(edge_features, hidden_features, [hidden_features])
+
+        blocks = [GNNBlock(hidden_features, hidden_features) for _ in range(n_blocks)]
+        self.processor = nn.ModuleList(blocks)
+
+        self.decoder_nodes = MiniMLP(hidden_features, out_nodes, [hidden_features])
+
+        self.node2glob = SoftmaxAggregation(learn=True)
+
+        self.decoder_glob = MiniMLP(hidden_features, out_glob, [hidden_features, hidden_features])
+
+
+    def forward(self, data:Data)->Tuple[Tensor, Tensor]:
+        x, edge_index, edge_attr = data.x, data.edge_index, data.edge_attr
+
+        # encode node and edge features
+        node_feature = self.encoder_nodes(x)
+
+        edge_feature = self.encoder_edges(edge_attr)
+
+        # processing
+        for block in self.processor:
+            node_feature, edge_feature = block(node_feature, edge_index, edge_feature)
+
+        # decode node features
+        y = self.decoder_nodes(node_feature)
+
+        # global aggregation
+        batch = data.batch
+        glob_in = self.node2glob(node_feature, batch,dim=-2)
+        glob_out = self.decoder_glob(glob_in)
+
+        return y, glob_out
+    
+class ZigZag(EncodeProcessDecode):
+    def __init__(self,
+                node_features: int,
+                edge_features: int,
+                hidden_features: int,
+                n_blocks: int,
+                out_nodes: int,
+                out_glob: int,
+                z0:Optional[float]=0.0) -> None:
+        super().__init__(node_features+out_nodes, edge_features, hidden_features, n_blocks, out_nodes, out_glob)
+
+        self.kind = 'zigzag'
+        self.out_nodes = out_nodes
+        self.z0 = z0
+
+    def forward(self, data:Data, y:Optional[Union[None, Tensor]]=None)->Tuple[Tensor, Tensor]:
+        datain = copy.deepcopy(data)
+        if y is None:
+            batch = data.x.shape[0]
+            y = self.z0*torch.ones((batch, self.out_nodes),device=data.x.device)
+
+        datain.x = torch.cat([data.x, y], dim=1)
+        return super().forward(datain)
+    
+    def call_recursively(self, data:Data):
+        y1, y_glob1 = self.forward(data)
+        y2, y_glob2 = self.forward(data, y=y1)
+        return 0.5*(y1+y2), 0.5*(y_glob1+y_glob2), 0.5*(y1-y2)**2, 0.5*(y_glob1-y_glob2)**2
+    
+class Ensemble(nn.Module):
+    def __init__(self,
+                 n_models:int,
+                node_features:int,
+                edge_features:int,
+                hidden_features:int,
+                n_blocks:int,
+                out_nodes:int,
+                out_glob:int,
+            )->None:
+        super().__init__()
+
+        self.kind = 'ensemble'
+        self.models_list = [EncodeProcessDecode(
+            node_features=node_features,
+            edge_features=edge_features,
+            hidden_features=hidden_features,
+            n_blocks=n_blocks,
+            out_nodes=out_nodes,
+            out_glob=out_glob
+        ) for _ in range(n_models)]
+
+    def forward(self, data:Data, return_var:bool=False)->Tuple[Tensor, Tensor]:
+        y_list = []
+        glob_list = []
+        for model in self.models_list:
+            y, glob = model(data)
+            y_list.append(y)
+            glob_list.append(glob)
+        y_mean = torch.stack(y_list,dim=-1).mean(dim=-1)
+        glob_mean = torch.stack(glob_list,dim=-1).mean(dim=-1)
+    
+        if return_var:
+            return y_mean, glob_mean, torch.stack(y_list,dim=-1).var(dim=-1)
+        else:
+            return y_mean, glob_mean
+        
+    def __len__(self):
+        return len(self.models_list)
+
+
+    
+
+
+if __name__ == '__main__':
+    from dataset import XFoilDataset
+
+    root = '/home/daep/e.foglia/Documents/1A/05_uncertainty_quantification/data/airfoils/train_shapes'
+    dataset = XFoilDataset(root)
+    graph = dataset[0]
+
+    block = GNNBlock(edge_features=3, node_features=3)
+    # print(torch_scatter.scatter(graph.edge_attr, graph.edge_index, dim=-2, reduce='sum'))
+    print(block(graph.x, graph.edge_index, graph.edge_attr))
+
+    model = EncodeProcessDecode(
+            node_features=3,
+            edge_features=3,
+            hidden_edge_features=32,
+            hidden_node_features=32,
+            n_blocks=4,
+            out_nodes=1,
+            )
+    
+    print(model)
+    
+    for _ in range(10):
+        print(model(graph))

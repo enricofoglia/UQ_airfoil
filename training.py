@@ -1,3 +1,5 @@
+import os
+
 from typing import (
     Optional,
     Callable,
@@ -147,76 +149,108 @@ class EnsembleTrainer(Trainer):
         self.epochs = epochs
         self.ensemble = ensemble
         
-        self.optimizer = optimizer
-        self.optim_kwargs = optim_kwargs
-        
+        if optim_kwargs is not None:
+            self.optimizer = optimizer(self.ensemble[0].parameters(), **optim_kwargs)
+        else: 
+            self.optimizer = optimizer(self.ensemble[0].parameters())
         self.loss_fn = loss_fn
         self.device = device
+        self.optim_kwargs = optim_kwargs
 
-        self.scheduler = scheduler 
-        self.scheduler_kwargs = scheduler_kwargs
+        if scheduler is not None:
+            if scheduler_kwargs is not None:
+                self.scheduler = scheduler(self.optimizer, **scheduler_kwargs)
+            else:
+                self.scheduler = scheduler(self.optimizer)
+        else:
+            self.scheduler = None
 
         self.weight = 0.01
 
-        def _optimizer_init(self, model)->None:
-            if optim_kwargs is not None:
-                self.optimizer = optimizer.__init__(model.parameters(), **self.optim_kwargs)
-            else: 
-                self.optimizer = optimizer(model.parameters())
+    # TODO: find a way to properly reinitialize optimizer and scheduler
+    def _optimizer_init(self, model)->None:
+        self.optimizer = self.optimizer.__init__(self.optimizer,
+                                                 model.parameters(),
+                                                 **self.optim_kwargs)
 
-        def _scheduler_init(self)->None:
-            if self.scheduler is not None:
-                if scheduler_kwargs is not None:
-                    self.scheduler = scheduler(self.optimizer, **self.scheduler_kwargs)
-                else:
-                    self.scheduler = scheduler(self.optimizer)
+    def _scheduler_init(self)->None:
+        self.scheduler = self.scheduler.__init__(self.scheduler,
+                                                 self.optimizer,
+                                                 **self.scheduler.defaults)
 
-        def fit(self, train_loader:DataLoader, test_loader:DataLoader, savefile:Optional[str]='out/best_model.pt'):
+
+    def fit(self, train_loader:DataLoader, test_loader:DataLoader, savefile:Optional[str]='out/best_model.pt'):
+        print( '+----------------------------------+')
+        print( '| Training started ...             |')
+        print( '+----------------------------------+')
+        print(f'| Number of epochs : {self.epochs:<13d} |')
+        print(f'| Number of models : {self.n_models:<13d} |')
+        print(f'| Total number of epochs : {self.epochs*self.n_models:<8d}|')
+        print( '+----------------------------------+')
+
+        self.training_history = []
+        self.test_history = []
+        self.lr_history = []
+
+        for n, model in enumerate(self.ensemble):
             print( '+----------------------------------+')
-            print( '| Training started ...             |')
+            print(f'| Model {n+1:>3d}/{self.n_models:<3d} ...{" "*16}|')
             print( '+----------------------------------+')
-            print(f'| Number of epochs : {self.epochs:<14d} |')
-            print(f'| Number of models : {self.n_models:<14d} |')
-            print(f'| Total number of epochs : {self.epochs*self.n_models:<8d}|')
-            print( '+----------------------------------+')
+            
+            training_history = []
+            test_history = []
+            lr_history = []
+            self.best_loss = torch.inf
+            
+            self._optimizer_init(model)
+            self._scheduler_init()
 
-            for n, model in enumerate(self.ensemble):
-                print( '+----------------------------------+')
-                print(f'| Model {n+1}/{self.n_models} ...  |')
-                print( '+----------------------------------+')
-                self.training_history = []
-                self.test_history = []
-                self.best_loss = torch.inf
-                self.lr_history = []
+            for epoch in tqdm(range(self.epochs)):
+                model.train()
+                training_history.append(super()._train_epoch(train_loader, model))
+                test_history.append(super()._test_epoch(test_loader, model))
+                # print(f' Current loss = {self.training_history[-1]}')
 
-                self._optimizer_init(model)
-                self._scheduler_init()
+                if self.scheduler is not None:
+                    self.scheduler.step()
 
-                for epoch in tqdm(range(self.epochs)):
-                    model.train()
-                    self.training_history.append(super()._train_epoch(train_loader, model))
-                    self.test_history.append(super()._test_epoch(test_loader, model))
-                    print(f' Current loss = {self.training_history[-1]}')
+                lr_history.append(self.optimizer.param_groups[0]['lr'])
 
-                    if self.scheduler is not None:
-                        self.scheduler.step()
+                if test_history[-1] < self.best_loss:
+                    self.best_loss = test_history[-1]
+                    self.save_checkpoint(model, savefile, n)
 
-                    self.lr_history.append(self.optimizer.param_groups[0]['lr'])
-
-                    if self.test_history[-1] < self.best_loss:
-                        self.best_loss = self.test_history[-1]
-                        torch.save(self.model.state_dict(), savefile)
-
-                
-
-            print( '| Training ended                   |')
-            print( '+----------------------------------+')
-            print(f'| Final Loss : {self.training_history[-1]:<19.3f} |')
-            print(f'| Bets Loss  : {self.best_loss:<19.3f} |')
+            print(f'| Final Loss : {training_history[-1]:<19.3f} |')
+            print(f'| Best Loss  : {self.best_loss:<19.3f} |')
             print( '+----------------------------------+')
 
-        @property
-        def n_models(self):
-            return len(self.ensemble)
+            self.training_history.append(training_history)
+            self.test_history.append(test_history)
+            self.lr_history.append(lr_history)
+
+        print( '| Training ended                   |')
+        print( '+----------------------------------+')
+        
+
+    @property
+    def n_models(self):
+        return len(self.ensemble)
+    
+    def save_checkpoint(model: Module, filename:str='out/best_model.pt', ensemble_num:int=-1)-> None:
+        if ensemble_num > -1:
+            dir_path = os.path.dirname(filename)
+            file_name = os.path.basename(filename)
+
+            # Create the new path by adding the folder
+            new_dir_path = os.path.join(dir_path, 'ensemble')
+            if not os.path.exists(new_dir_path):
+                os.makedirs(new_dir_path)   
+
+            base_name = f"{file_name.split('.')[0]}_{ensemble_num}.pt"
+
+            # add file name to path
+            filename = os.path.join(new_dir_path, base_name)
+            
+        torch.save(model.state_dict(), filename)
 
 

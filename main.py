@@ -9,8 +9,8 @@ from torch_geometric.loader import DataLoader
 from sklearn.model_selection import train_test_split
 
 from dataset import XFoilDataset, FourierEpicycles
-from model import EncodeProcessDecode, ZigZag
-from training import Trainer
+from model import EncodeProcessDecode, ZigZag, Ensemble
+from training import Trainer, EnsembleTrainer
 
 # debug: track down anomaly
 # torch.autograd.set_detect_anomaly(True)
@@ -39,14 +39,24 @@ test_loader = DataLoader(test_set, batch_size=16, shuffle=False)
 #             out_glob=1
 #             )
 
-model = ZigZag(
+# model = ZigZag(
+#             node_features=3+n,
+#             edge_features=3,
+#             hidden_features=64,
+#             n_blocks=6,
+#             out_nodes=1,
+#             out_glob=1,
+#             z0=-3.0
+#             )
+
+model = Ensemble(
+            n_models=5,
             node_features=3+n,
             edge_features=3,
             hidden_features=64,
             n_blocks=6,
             out_nodes=1,
             out_glob=1,
-            z0=-3.0
             )
 
 # loss = MSELoss()
@@ -54,12 +64,22 @@ loss = lambda y, pred: torch.mean((y-pred)**2)
 
 initial_lr = 5e-3
 final_lr = 1e-4
-epochs = 200
+epochs = 10
 gamma = (final_lr/initial_lr)**(1/epochs)
 
-trainer = Trainer(
+# trainer = Trainer(
+#     epochs=epochs,
+#     model=model,
+#     optimizer=Adam,
+#     optim_kwargs={'lr':initial_lr},
+#     loss_fn=loss,
+#     scheduler=ExponentialLR,
+#     scheduler_kwargs={'gamma':gamma}
+# )
+
+trainer = EnsembleTrainer(
     epochs=epochs,
-    model=model,
+    ensemble=model,
     optimizer=Adam,
     optim_kwargs={'lr':initial_lr},
     loss_fn=loss,
@@ -67,7 +87,7 @@ trainer = Trainer(
     scheduler_kwargs={'gamma':gamma}
 )
 
-trainer.fit(train_loader, test_loader, 'out/zigzag.pt')
+trainer.fit(train_loader, test_loader, 'out/ensemble.pt')
 
 import matplotlib.pyplot as plt
 fig, ax = plt.subplots()

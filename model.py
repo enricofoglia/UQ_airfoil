@@ -197,9 +197,14 @@ class Ensemble(nn.Module):
         
     def __len__(self):
         return len(self.models_list)
-
-
     
+    def __iter__(self):
+        # Use a generator function to yield elements
+        for model in self.models_list:
+            yield model
+
+    def __getitem__(self, idx):
+        return self.models_list[idx]
 
 
 if __name__ == '__main__':

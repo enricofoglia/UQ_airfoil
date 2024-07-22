@@ -9,7 +9,7 @@ from torch_geometric.loader import DataLoader
 from sklearn.model_selection import train_test_split
 
 from dataset import XFoilDataset, FourierEpicycles
-from model import EncodeProcessDecode, ZigZag, Ensemble
+from model import EncodeProcessDecode, ZigZag, Ensemble, MCDropout
 from training import Trainer, EnsembleTrainer
 
 # debug: track down anomaly
@@ -30,14 +30,14 @@ test_set = dataset[test_idx]
 train_loader = DataLoader(train_set, batch_size=16, shuffle=True)
 test_loader = DataLoader(test_set, batch_size=16, shuffle=False)
 
-# model = EncodeProcessDecode(
-#             node_features=3+n,
-#             edge_features=3,
-#             hidden_features=64,
-#             n_blocks=6,
-#             out_nodes=1,
-#             out_glob=1
-#             )
+model = EncodeProcessDecode(
+            node_features=3+n,
+            edge_features=3,
+            hidden_features=64,
+            n_blocks=6,
+            out_nodes=1,
+            out_glob=1
+            )
 
 # model = ZigZag(
 #             node_features=3+n,
@@ -49,16 +49,26 @@ test_loader = DataLoader(test_set, batch_size=16, shuffle=False)
 #             z0=-3.0
 #             )
 
-model = Ensemble(
-            n_models=5,
-            node_features=3+n,
-            edge_features=3,
-            hidden_features=64,
-            n_blocks=6,
-            out_nodes=1,
-            out_glob=1,
-            )
+# model = Ensemble(
+#             n_models=5,
+#             node_features=3+n,
+#             edge_features=3,
+#             hidden_features=64,
+#             n_blocks=6,
+#             out_nodes=1,
+#             out_glob=1,
+#             )
 
+# model = MCDropout(
+#             node_features=3+n,
+#             edge_features=3,
+#             hidden_features=64,
+#             n_blocks=6,
+#             out_nodes=1,
+#             out_glob=1,
+#             dropout=True,
+#             p=0.1
+#             )
 # loss = MSELoss()
 loss = lambda y, pred: torch.mean((y-pred)**2)
 
@@ -67,27 +77,27 @@ final_lr = 1e-4
 epochs = 10
 gamma = (final_lr/initial_lr)**(1/epochs)
 
-# trainer = Trainer(
-#     epochs=epochs,
-#     model=model,
-#     optimizer=Adam,
-#     optim_kwargs={'lr':initial_lr},
-#     loss_fn=loss,
-#     scheduler=ExponentialLR,
-#     scheduler_kwargs={'gamma':gamma}
-# )
-
-trainer = EnsembleTrainer(
+trainer = Trainer(
     epochs=epochs,
-    ensemble=model,
-    optimizer='adam',
+    model=model,
+    optimizer=Adam,
     optim_kwargs={'lr':initial_lr},
     loss_fn=loss,
-    scheduler='exponential',
+    scheduler=ExponentialLR,
     scheduler_kwargs={'gamma':gamma}
 )
 
-trainer.fit(train_loader, test_loader, 'out/ensemble.pt')
+# trainer = EnsembleTrainer(
+#     epochs=epochs,
+#     ensemble=model,
+#     optimizer='adam',
+#     optim_kwargs={'lr':initial_lr},
+#     loss_fn=loss,
+#     scheduler='exponential',
+#     scheduler_kwargs={'gamma':gamma}
+# )
+
+trainer.fit(train_loader, test_loader, 'out/simple_mlp.pt')
 
 import matplotlib.pyplot as plt
 fig, ax = plt.subplots()

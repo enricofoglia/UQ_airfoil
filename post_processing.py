@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 from sklearn.metrics import r2_score
 
 from dataset import XFoilDataset, FourierEpicycles
-from model import EncodeProcessDecode, ZigZag
+from model import EncodeProcessDecode, ZigZag, Ensemble
 from utils import count_parameters
 # =================================================
 # Matplotlib settings
@@ -44,16 +44,29 @@ std = dataset.std
 #             out_glob=1
 #             )
 
-model = ZigZag(
+# model = ZigZag(
+#             node_features=3+n,
+#             edge_features=3,
+#             hidden_features=64,
+#             n_blocks=6,
+#             out_nodes=1,
+#             out_glob=1,
+#             z0=-3.0
+#             )
+
+model = Ensemble(
+            n_models=5,
             node_features=3+n,
             edge_features=3,
             hidden_features=64,
             n_blocks=6,
             out_nodes=1,
             out_glob=1,
-            z0=-3.0
             )
-model.load_state_dict(torch.load('out/zigzag.pt'))
+
+# model.load_state_dict(torch.load('out/zigzag.pt'))
+for n,single_model in enumerate(model):
+    single_model.load_state_dict(torch.load(f'out/ensemble/ensemble_{n}.pt'))
 
 n_params = count_parameters(model)
 print( '+---------------------------------+')

@@ -100,7 +100,7 @@ class Trainer():
             y = batch.y
             y_glob = batch.y_glob
 
-            if model.kind == 'simple_gnn':
+            if model.kind == 'simple_gnn' or model.kind == 'dropout':
                 pred, pred_glob  = model(batch)
                 loss = (self.loss_fn(pred.squeeze(), y.squeeze()) 
                         + self.weight*self.loss_fn(pred_glob.squeeze(), y_glob.squeeze()))

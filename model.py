@@ -45,12 +45,26 @@ class MiniMLP(nn.Module):
             x = self.activation(layer(x))
         return self.layers[-1](x)
     
+class DropoutMLP(MiniMLP):
+    def __init__(self, inputs: int, targets: int, hidden: List[int],p:float) -> None:
+        super().__init__(inputs, targets, hidden)
+
+        self.dropout = nn.Dropout(p=p)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        for layer in self.layers[:-1]:
+            x = self.dropout(self.activation(layer(x)))
+        return self.layers[-1](x)
+    
+    
 class GNNBlock(pyg.nn.conv.MessagePassing):
     def __init__(
             self,
             node_features:int,
             edge_features:int,
             aggr: Optional[Union[str, List[str], Aggregation]] = 'sum',
+            dropout:Optional[bool]=False,
+            p:Optional[float]=0.1,
             *,
             aggr_kwargs: Optional[Dict[str, Any]] = None,
             flow: str = "source_to_target",
@@ -59,9 +73,12 @@ class GNNBlock(pyg.nn.conv.MessagePassing):
         super().__init__(aggr=aggr, aggr_kwargs=aggr_kwargs, flow=flow, node_dim=node_dim,decomposed_layers=decomposed_layers)
 
         self.node_features = node_features
-
-        self.udpate_edge = MiniMLP(edge_features+2*node_features, edge_features, [edge_features])
-        self.udpate_node = MiniMLP(edge_features+node_features, node_features, [node_features])
+        if dropout:
+            self.udpate_edge = DropoutMLP(edge_features+2*node_features, edge_features, [edge_features],p)
+            self.udpate_node = DropoutMLP(edge_features+node_features, node_features, [node_features],p)
+        else:
+            self.udpate_edge = MiniMLP(edge_features+2*node_features, edge_features, [edge_features])
+            self.udpate_node = MiniMLP(edge_features+node_features, node_features, [node_features])
 
     def message(self, x_i, x_j, edge_attr):
         x = torch.cat((x_i, x_j, edge_attr), dim=-1)
@@ -89,22 +106,30 @@ class EncodeProcessDecode(nn.Module):
             n_blocks:int,
             out_nodes:int,
             out_glob:int,
+            dropout:Optional[bool]=False,
+            p:Optional[float]=0.1
            )->None:
         super().__init__()
 
         self.kind = 'simple_gnn'
 
-        self.encoder_nodes = MiniMLP(node_features, hidden_features, [hidden_features])
-        self.encoder_edges = MiniMLP(edge_features, hidden_features, [hidden_features])
+        if dropout:
+            self.encoder_nodes = DropoutMLP(node_features, hidden_features, [hidden_features],p)
+            self.encoder_edges = DropoutMLP(edge_features, hidden_features, [hidden_features],p)
+            blocks = [GNNBlock(hidden_features, hidden_features,dropout=dropout,p=p) for _ in range(n_blocks)]
+            self.processor = nn.ModuleList(blocks)
+            self.decoder_nodes = DropoutMLP(hidden_features, out_nodes, [hidden_features],p)
+            self.node2glob = SoftmaxAggregation(learn=True)
+            self.decoder_glob = DropoutMLP(hidden_features, out_glob, [hidden_features, hidden_features],p)
 
-        blocks = [GNNBlock(hidden_features, hidden_features) for _ in range(n_blocks)]
-        self.processor = nn.ModuleList(blocks)
-
-        self.decoder_nodes = MiniMLP(hidden_features, out_nodes, [hidden_features])
-
-        self.node2glob = SoftmaxAggregation(learn=True)
-
-        self.decoder_glob = MiniMLP(hidden_features, out_glob, [hidden_features, hidden_features])
+        else:
+            self.encoder_nodes = MiniMLP(node_features, hidden_features, [hidden_features])
+            self.encoder_edges = MiniMLP(edge_features, hidden_features, [hidden_features])
+            blocks = [GNNBlock(hidden_features, hidden_features,dropout=dropout,p=p) for _ in range(n_blocks)]
+            self.processor = nn.ModuleList(blocks)
+            self.decoder_nodes = MiniMLP(hidden_features, out_nodes, [hidden_features])
+            self.node2glob = SoftmaxAggregation(learn=True)
+            self.decoder_glob = MiniMLP(hidden_features, out_glob, [hidden_features, hidden_features])
 
 
     def forward(self, data:Data)->Tuple[Tensor, Tensor]:
@@ -205,6 +230,46 @@ class Ensemble(nn.Module):
 
     def __getitem__(self, idx):
         return self.models_list[idx]
+    
+class MCDropout(EncodeProcessDecode):
+    def __init__(self, node_features: int,
+                 edge_features: int,
+                 hidden_features: int,
+                 n_blocks: int,
+                 out_nodes: int,
+                 out_glob: int,
+                 dropout: bool | None = False,
+                 p:Optional[float]=0.1):
+        
+        super().__init__(node_features,
+                         edge_features,
+                         hidden_features,
+                         n_blocks,
+                         out_nodes, 
+                         out_glob,
+                         dropout, 
+                         p)
+        self.kind= 'dropout'
+        
+    def forward(self,  data:Data, T:Optional[int]=1, return_var:bool=False):
+        if T == 1:
+            return super().forward(data)
+        
+        self.train()
+
+        y_list = []
+        glob_list = []
+        for _ in range(T):
+            y, glob = super().forward(data)
+            y_list.append(y)
+            glob_list.append(glob)
+        y_mean = torch.stack(y_list,dim=-1).mean(dim=-1)
+        glob_mean = torch.stack(glob_list,dim=-1).mean(dim=-1)
+    
+        if return_var:
+            return y_mean, glob_mean, torch.stack(y_list,dim=-1).var(dim=-1)
+        else:
+            return y_mean, glob_mean
 
 
 if __name__ == '__main__':

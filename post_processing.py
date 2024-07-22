@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 from sklearn.metrics import r2_score
 
 from dataset import XFoilDataset, FourierEpicycles
-from model import EncodeProcessDecode, ZigZag, Ensemble
+from model import EncodeProcessDecode, ZigZag, Ensemble, MCDropout
 from utils import count_parameters
 # =================================================
 # Matplotlib settings
@@ -35,14 +35,14 @@ dataset = XFoilDataset(root, normalize=True, pre_transform=pre_transform)
 avg = dataset.avg 
 std = dataset.std
 
-# model = EncodeProcessDecode(
-#             node_features=3+n,
-#             edge_features=3,
-#             hidden_features=64,
-#             n_blocks=6,
-#             out_nodes=1,
-#             out_glob=1
-#             )
+model = EncodeProcessDecode(
+            node_features=3+n,
+            edge_features=3,
+            hidden_features=64,
+            n_blocks=6,
+            out_nodes=1,
+            out_glob=1
+            )
 
 # model = ZigZag(
 #             node_features=3+n,
@@ -54,19 +54,30 @@ std = dataset.std
 #             z0=-3.0
 #             )
 
-model = Ensemble(
-            n_models=5,
-            node_features=3+n,
-            edge_features=3,
-            hidden_features=64,
-            n_blocks=6,
-            out_nodes=1,
-            out_glob=1,
-            )
+# model = Ensemble(
+#             n_models=5,
+#             node_features=3+n,
+#             edge_features=3,
+#             hidden_features=64,
+#             n_blocks=6,
+#             out_nodes=1,
+#             out_glob=1,
+#             )
 
-# model.load_state_dict(torch.load('out/zigzag.pt'))
-for n,single_model in enumerate(model):
-    single_model.load_state_dict(torch.load(f'out/ensemble/ensemble_{n}.pt'))
+# model = MCDropout(
+#             node_features=3+n,
+#             edge_features=3,
+#             hidden_features=64,
+#             n_blocks=6,
+#             out_nodes=1,
+#             out_glob=1,
+#             dropout=True,
+#             p=0.1
+#             )
+
+model.load_state_dict(torch.load('out/simple_mlp.pt'))
+# for n,single_model in enumerate(model):
+    # single_model.load_state_dict(torch.load(f'out/ensemble/ensemble_{n}.pt'))
 
 n_params = count_parameters(model)
 print( '+---------------------------------+')
@@ -81,7 +92,10 @@ for i, ind in enumerate(indices):
     col = i%2
     graph = dataset[ind]
     with torch.no_grad():
-        pred, pred_glob = model(graph)
+        if model.kind == 'dropout':
+            pred, pred_glob = model(graph, T=50)
+        else: 
+            pred, pred_glob = model(graph)
     pred_glob = pred_glob*std + avg
     y_glob = graph.y_glob*std + avg
 

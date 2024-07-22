@@ -1,4 +1,5 @@
 import os
+import copy
 
 from typing import (
     Optional,
@@ -9,7 +10,12 @@ from typing import (
 
 import torch 
 from torch.optim import Optimizer, Adam
-from torch.optim.lr_scheduler import LRScheduler
+from torch.optim.lr_scheduler import (
+    LRScheduler,
+    ExponentialLR,
+    ReduceLROnPlateau
+    )
+ 
 from torch.nn import MSELoss, Module
 
 from torch_geometric.loader import DataLoader
@@ -139,7 +145,7 @@ class EnsembleTrainer(Trainer):
     def __init__(self,
                  epochs: int,
                  ensemble: Module,
-                 optimizer: Optimizer | None = Adam,
+                 optimizer: str | None = 'adam',
                  loss_fn: Callable[..., Any] | None = MSELoss(),
                  device: str | None = 'cpu',
                  scheduler: LRScheduler | None = None,
@@ -149,34 +155,44 @@ class EnsembleTrainer(Trainer):
         self.epochs = epochs
         self.ensemble = ensemble
         
-        if optim_kwargs is not None:
-            self.optimizer = optimizer(self.ensemble[0].parameters(), **optim_kwargs)
-        else: 
-            self.optimizer = optimizer(self.ensemble[0].parameters())
+        self._optimizer = optimizer
+        self.optim_kwargs = optim_kwargs
+        self._scheduler = scheduler
+        self.scheduler_kwargs = scheduler_kwargs
+
         self.loss_fn = loss_fn
         self.device = device
-        self.optim_kwargs = optim_kwargs
 
-        if scheduler is not None:
-            if scheduler_kwargs is not None:
-                self.scheduler = scheduler(self.optimizer, **scheduler_kwargs)
-            else:
-                self.scheduler = scheduler(self.optimizer)
-        else:
-            self.scheduler = None
-
+        
         self.weight = 0.01
 
     # TODO: find a way to properly reinitialize optimizer and scheduler
     def _optimizer_init(self, model)->None:
-        self.optimizer = self.optimizer.__init__(self.optimizer,
-                                                 model.parameters(),
-                                                 **self.optim_kwargs)
+        if self._optimizer == 'adam':
+            self.optimizer = Adam
+        else:
+            raise ValueError(f"Chosen optimizer '{self._optimizer}' is not currently supported")
+
+        if self.optim_kwargs is not None:
+            self.optimizer = self.optimizer(model.parameters(), **self.optim_kwargs)
+        else: 
+            self.base_optimizer = self.optimizer(model.parameters())
 
     def _scheduler_init(self)->None:
-        self.scheduler = self.scheduler.__init__(self.scheduler,
-                                                 self.optimizer,
-                                                 **self.scheduler.defaults)
+        if self._scheduler == 'reduce_on_plateau':
+            self.scheduler = ReduceLROnPlateau
+        elif self._scheduler == 'exponential':
+            self.scheduler = ExponentialLR
+        else:
+            raise ValueError(f"Chosen scheduler '{self._scheduler}' is not currently supported")
+        
+        if self.scheduler is not None:
+            if self.scheduler_kwargs is not None:
+                self.scheduler = self.scheduler(self.optimizer, **self.scheduler_kwargs)
+            else:
+                self.scheduler = self.scheduler(self.optimizer)
+        else:
+            self.base_scheduler = None
 
 
     def fit(self, train_loader:DataLoader, test_loader:DataLoader, savefile:Optional[str]='out/best_model.pt'):
@@ -207,8 +223,8 @@ class EnsembleTrainer(Trainer):
 
             for epoch in tqdm(range(self.epochs)):
                 model.train()
-                training_history.append(super()._train_epoch(train_loader, model))
-                test_history.append(super()._test_epoch(test_loader, model))
+                training_history.append(self._train_epoch(train_loader, model))
+                test_history.append(self._test_epoch(test_loader, model))
                 # print(f' Current loss = {self.training_history[-1]}')
 
                 if self.scheduler is not None:
@@ -236,7 +252,7 @@ class EnsembleTrainer(Trainer):
     def n_models(self):
         return len(self.ensemble)
     
-    def save_checkpoint(model: Module, filename:str='out/best_model.pt', ensemble_num:int=-1)-> None:
+    def save_checkpoint(self, model: Module, filename:str='out/best_model.pt', ensemble_num:int=-1)-> None:
         if ensemble_num > -1:
             dir_path = os.path.dirname(filename)
             file_name = os.path.basename(filename)

@@ -80,10 +80,10 @@ gamma = (final_lr/initial_lr)**(1/epochs)
 trainer = EnsembleTrainer(
     epochs=epochs,
     ensemble=model,
-    optimizer=Adam,
+    optimizer='adam',
     optim_kwargs={'lr':initial_lr},
     loss_fn=loss,
-    scheduler=ExponentialLR,
+    scheduler='exponential',
     scheduler_kwargs={'gamma':gamma}
 )
 

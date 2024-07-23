@@ -30,14 +30,14 @@ test_set = dataset[test_idx]
 train_loader = DataLoader(train_set, batch_size=16, shuffle=True)
 test_loader = DataLoader(test_set, batch_size=16, shuffle=False)
 
-model = EncodeProcessDecode(
-            node_features=3+n,
-            edge_features=3,
-            hidden_features=64,
-            n_blocks=6,
-            out_nodes=1,
-            out_glob=1
-            )
+# model = EncodeProcessDecode(
+#             node_features=3+n,
+#             edge_features=3,
+#             hidden_features=64,
+#             n_blocks=6,
+#             out_nodes=1,
+#             out_glob=1
+#             )
 
 # model = ZigZag(
 #             node_features=3+n,
@@ -49,15 +49,15 @@ model = EncodeProcessDecode(
 #             z0=-3.0
 #             )
 
-# model = Ensemble(
-#             n_models=5,
-#             node_features=3+n,
-#             edge_features=3,
-#             hidden_features=64,
-#             n_blocks=6,
-#             out_nodes=1,
-#             out_glob=1,
-#             )
+model = Ensemble(
+            n_models=5,
+            node_features=3+n,
+            edge_features=3,
+            hidden_features=64,
+            n_blocks=6,
+            out_nodes=1,
+            out_glob=1,
+            )
 
 # model = MCDropout(
 #             node_features=3+n,
@@ -74,30 +74,30 @@ loss = lambda y, pred: torch.mean((y-pred)**2)
 
 initial_lr = 5e-3
 final_lr = 1e-4
-epochs = 10
+epochs = 200
 gamma = (final_lr/initial_lr)**(1/epochs)
 
-trainer = Trainer(
-    epochs=epochs,
-    model=model,
-    optimizer=Adam,
-    optim_kwargs={'lr':initial_lr},
-    loss_fn=loss,
-    scheduler=ExponentialLR,
-    scheduler_kwargs={'gamma':gamma}
-)
-
-# trainer = EnsembleTrainer(
+# trainer = Trainer(
 #     epochs=epochs,
-#     ensemble=model,
-#     optimizer='adam',
+#     model=model,
+#     optimizer=Adam,
 #     optim_kwargs={'lr':initial_lr},
 #     loss_fn=loss,
-#     scheduler='exponential',
+#     scheduler=ExponentialLR,
 #     scheduler_kwargs={'gamma':gamma}
 # )
 
-trainer.fit(train_loader, test_loader, 'out/simple_mlp.pt')
+trainer = EnsembleTrainer(
+    epochs=epochs,
+    ensemble=model,
+    optimizer='adam',
+    optim_kwargs={'lr':initial_lr},
+    loss_fn=loss,
+    scheduler='exponential',
+    scheduler_kwargs={'gamma':gamma}
+)
+
+trainer.fit(train_loader, test_loader, 'out/ensemble.pt')
 
 import matplotlib.pyplot as plt
 fig, ax = plt.subplots()

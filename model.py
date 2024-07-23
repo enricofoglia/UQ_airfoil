@@ -169,7 +169,8 @@ class ZigZag(EncodeProcessDecode):
         self.out_nodes = out_nodes
         self.z0 = z0
 
-    def forward(self, data:Data, y:Optional[Union[None, Tensor]]=None)->Tuple[Tensor, Tensor]:
+    def forward(self, data:Data, y:Optional[Union[None, Tensor]]=None, return_var:bool=False)->Tuple[Tensor, Tensor]:
+        if return_var: return self.call_recursively(data)
         datain = copy.deepcopy(data)
         if y is None:
             batch = data.x.shape[0]
@@ -181,7 +182,7 @@ class ZigZag(EncodeProcessDecode):
     def call_recursively(self, data:Data):
         y1, y_glob1 = self.forward(data)
         y2, y_glob2 = self.forward(data, y=y1)
-        return 0.5*(y1+y2), 0.5*(y_glob1+y_glob2), 0.5*(y1-y2)**2, 0.5*(y_glob1-y_glob2)**2
+        return 0.5*(y1+y2), 0.5*(y_glob1+y_glob2), 0.5*(y1-y2)**2,  0.5*(y_glob1-y_glob2)**2
     
 class Ensemble(nn.Module):
     def __init__(self,
@@ -216,7 +217,7 @@ class Ensemble(nn.Module):
         glob_mean = torch.stack(glob_list,dim=-1).mean(dim=-1)
     
         if return_var:
-            return y_mean, glob_mean, torch.stack(y_list,dim=-1).var(dim=-1)
+            return y_mean, glob_mean, torch.stack(y_list,dim=-1).var(dim=-1), torch.stack(glob_list,dim=-1).var(dim=-1)
         else:
             return y_mean, glob_mean
         
@@ -267,7 +268,7 @@ class MCDropout(EncodeProcessDecode):
         glob_mean = torch.stack(glob_list,dim=-1).mean(dim=-1)
     
         if return_var:
-            return y_mean, glob_mean, torch.stack(y_list,dim=-1).var(dim=-1)
+            return y_mean, glob_mean, torch.stack(y_list,dim=-1).var(dim=-1), torch.stack(glob_list,dim=-1).var(dim=-1)
         else:
             return y_mean, glob_mean
 

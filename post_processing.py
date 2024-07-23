@@ -51,33 +51,33 @@ std_data = dataset.std
 #             n_blocks=6,
 #             out_nodes=1,
 #             out_glob=1,
-#             z0=-3.0
+#             z0=-10.0
 #             )
 
-model = Ensemble(
-            n_models=5,
-            node_features=3+n,
-            edge_features=3,
-            hidden_features=64,
-            n_blocks=6,
-            out_nodes=1,
-            out_glob=1,
-            )
-
-# model = MCDropout(
+# model = Ensemble(
+#             n_models=5,
 #             node_features=3+n,
 #             edge_features=3,
 #             hidden_features=64,
 #             n_blocks=6,
 #             out_nodes=1,
 #             out_glob=1,
-#             dropout=True,
-#             p=0.1
 #             )
 
-# model.load_state_dict(torch.load('out/zigzag.pt'))
-for n,single_model in enumerate(model):
-    single_model.load_state_dict(torch.load(f'out/ensemble/ensemble_{n}.pt'))
+model = MCDropout(
+            node_features=3+n,
+            edge_features=3,
+            hidden_features=64,
+            n_blocks=6,
+            out_nodes=1,
+            out_glob=1,
+            dropout=True,
+            p=0.1
+            )
+
+model.load_state_dict(torch.load('out/dropout.pt'))
+# for n,single_model in enumerate(model):
+    # single_model.load_state_dict(torch.load(f'out/ensemble/ensemble_{n}.pt'))
 
 n_params = count_parameters(model)
 print( '+---------------------------------+')
@@ -86,6 +86,8 @@ print( '+---------------------------------+')
 
 fig, ax = plt.subplots(2,2, sharex=True, sharey=False, layout='constrained')
 indices = random.choices(range(len(dataset)),k=4)
+print(f'| Selected indices {indices}')
+print( '+---------------------------------+')
 
 for i, ind in enumerate(indices):
     row = i//2

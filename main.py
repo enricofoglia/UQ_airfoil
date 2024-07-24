@@ -18,7 +18,7 @@ set_seed(42)
 
 # debug: track down anomaly
 # torch.autograd.set_detect_anomaly(True)
-n = 30
+n = 10
 pre_transform = FourierEpicycles(n=n)
 
 root = '/home/daep/e.foglia/Documents/1A/05_uncertainty_quantification/data/airfoils/train_shapes'
@@ -43,25 +43,25 @@ test_loader = DataLoader(test_set, batch_size=16, shuffle=False)
 #             out_glob=1
 #             )
 
-# model = ZigZag(
+model = ZigZag(
+            node_features=3+n*2,
+            edge_features=3,
+            hidden_features=64,
+            n_blocks=6,
+            out_nodes=1,
+            out_glob=1,
+            z0=-10.0
+            )
+
+# model = Ensemble(
+#             n_models=5,
 #             node_features=3+n,
 #             edge_features=3,
 #             hidden_features=64,
 #             n_blocks=6,
 #             out_nodes=1,
 #             out_glob=1,
-#             z0=-10.0
 #             )
-
-model = Ensemble(
-            n_models=5,
-            node_features=3+n,
-            edge_features=3,
-            hidden_features=64,
-            n_blocks=6,
-            out_nodes=1,
-            out_glob=1,
-            )
 
 # model = MCDropout(
 #             node_features=3+n,
@@ -81,27 +81,27 @@ final_lr = 1e-4
 epochs = 200
 gamma = (final_lr/initial_lr)**(1/epochs)
 
-# trainer = Trainer(
-#     epochs=epochs,
-#     model=model,
-#     optimizer=Adam,
-#     optim_kwargs={'lr':initial_lr},
-#     loss_fn=loss,
-#     scheduler=ExponentialLR,
-#     scheduler_kwargs={'gamma':gamma}
-# )
-
-trainer = EnsembleTrainer(
+trainer = Trainer(
     epochs=epochs,
-    ensemble=model,
-    optimizer='adam',
+    model=model,
+    optimizer=Adam,
     optim_kwargs={'lr':initial_lr},
     loss_fn=loss,
-    scheduler='exponential',
+    scheduler=ExponentialLR,
     scheduler_kwargs={'gamma':gamma}
 )
 
-trainer.fit(train_loader, test_loader, 'out/ensemble.pt')
+# trainer = EnsembleTrainer(
+#     epochs=epochs,
+#     ensemble=model,
+#     optimizer='adam',
+#     optim_kwargs={'lr':initial_lr},
+#     loss_fn=loss,
+#     scheduler='exponential',
+#     scheduler_kwargs={'gamma':gamma}
+# )
+
+trainer.fit(train_loader, test_loader, 'out/zigzag_eigshapes.pt')
 torch.save(train_idx, 'out/train_idx.pt')
 torch.save(test_idx, 'out/test_idx.pt')
 

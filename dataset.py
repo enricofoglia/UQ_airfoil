@@ -260,11 +260,22 @@ class FourierEpicycles(BaseTransform):
         Z = torch.fft.fft(z)
         # retain only amplitude (real part)
         ampl = torch.sqrt(Z.real[:self.n]**2 + Z.imag[:self.n]**2)
+        phase = torch.atan2(Z.imag[:self.n],Z.real[:self.n])
+        
+        # compute eignshapes
+        theta = torch.linspace(0, 2*torch.pi, n_points)
+        eigx = [ampl[m]/ampl[0]*torch.cos(m*theta + phase[m]) for m in range(self.n)]
+        eigy = [ampl[m]/ampl[0]*torch.sin(m*theta + phase[m]) for m in range(self.n)]
+        eigx, eigy = torch.stack(eigx,dim=-1), torch.stack(eigy,dim=-1)
+
         ampl_repl = ampl.repeat(n_points, 1)
 
         if pseudo is not None and self.cat:
             pseudo = pseudo.view(-1, 1) if pseudo.dim() == 1 else pseudo
-            data.x = torch.cat([pseudo, ampl_repl.type_as(pseudo)], dim=-1)
+            # data.x = torch.cat([pseudo, ampl_repl.type_as(pseudo)], dim=-1)
+            data.x = torch.cat([pseudo, eigx.type_as(pseudo)], dim=-1)
+            pseudo = data.x 
+            data.x = torch.cat([pseudo, eigy.type_as(pseudo)], dim=-1)
         else:
             data.x = ampl 
         
@@ -291,8 +302,8 @@ if __name__ == '__main__':
         'ytick.labelsize' : 14
     })
     # =================================================
-    
-    pre_transform = FourierEpicycles(n=100)
+    N = 100
+    pre_transform = FourierEpicycles(n=N)
 
     root = '/home/daep/e.foglia/Documents/1A/05_uncertainty_quantification/data/airfoils/train_shapes'
     dataset = XFoilDataset(root, pre_transform=pre_transform)
@@ -339,12 +350,44 @@ if __name__ == '__main__':
         ax.set_title('Fourier transform')
         ax.set_yscale('log')
         
+    def plot_graph_eigenshapes(graph,n,N):
+        eigx = graph.x[:,3+n]
+        eigy = graph.x[:,3+n+N]
+        fig, ax = plt.subplots(2,1,sharex=True,layout='constrained')
+        scx = ax[0].scatter(graph.pos[:,0], graph.pos[:,1], c=eigx, cmap='RdYlBu_r',
+                         edgecolors='k', zorder=2.5)
+        scy = ax[1].scatter(graph.pos[:,0], graph.pos[:,1], c=eigy, cmap='RdYlBu_r',
+                         edgecolors='k', zorder=2.5)
+        num_edges = graph.edge_index.shape[1]
+        for i in range(num_edges):
+            start_idx = graph.edge_index[0, i].item()
+            end_idx = graph.edge_index[1, i].item()
+            start_coords = graph.pos[start_idx]
+            end_coords = graph.pos[end_idx]
+            ax[0].plot([start_coords[0], end_coords[0]], [start_coords[1], end_coords[1]], c='black', 
+                     alpha=0.6)
+            ax[1].plot([start_coords[0], end_coords[0]], [start_coords[1], end_coords[1]], c='black', 
+                     alpha=0.6)
+        plt.colorbar(scx, ax=ax[0], label=r'amplitude, x')
+        plt.colorbar(scy, ax=ax[1], label=r'amplitude, y')
+        ax[1].set_xlabel(r'$x/c$ [-]')
+        for i in range(2):
+            ax[i].set_ylabel(r'$y/c$ [-]')
+            ax[i].axis('equal')
+
+        fig.suptitle(r'Eigenshape $\phi_{{n}}(\vartheta)$, $n$={0}'.format(n))
 
 
     plot_graph_curvature(graph)
-    plt.show()
+    # plt.show()
 
-    plot_graph_fourier(graph)
+    # plot_graph_fourier(graph)
+    # plt.show()
+
+    plot_graph_eigenshapes(graph, 0,N)
+    plot_graph_eigenshapes(graph, 1,N)
+    plot_graph_eigenshapes(graph, 5,N)
+    plot_graph_eigenshapes(graph, 10,N)
     plt.show()
 
 

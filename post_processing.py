@@ -34,17 +34,18 @@ plt.rcParams.update({
 
 set_seed(42)
 
-n = 30
+n = 10
 pre_transform = FourierEpicycles(n=n)
 
 root = '/home/daep/e.foglia/Documents/1A/05_uncertainty_quantification/data/airfoils/train_shapes'
-dataset = XFoilDataset(root, normalize=True, pre_transform=pre_transform)
+dataset = XFoilDataset(root, normalize=True, pre_transform=pre_transform,
+                       force_reload=True)
 
 # load train-test split as in training
 train_idx = torch.load('out/train_idx.pt')
 test_idx = torch.load('out/test_idx.pt')
 train_dataset = dataset[train_idx]
-test_dataset  = dataset[test_idx]
+test_dataset  = dataset[train_idx]
 
 avg_data = dataset.avg 
 std_data = dataset.std
@@ -59,7 +60,7 @@ std_data = dataset.std
 #             )
 
 model = ZigZag(
-            node_features=3+n,
+            node_features=3+n*2,
             edge_features=3,
             hidden_features=64,
             n_blocks=6,
@@ -89,9 +90,9 @@ model = ZigZag(
 #             p=0.1
 #             )
 
-model.load_state_dict(torch.load('out/zigzag-10.pt'))
+model.load_state_dict(torch.load('out/zigzag_eigshapes.pt'))
 # for n,single_model in enumerate(model):
-    # single_model.load_state_dict(torch.load(f'out/ensemble/ensemble_{n}.pt'))
+#     single_model.load_state_dict(torch.load(f'out/ensemble/ensemble_{n}.pt'))
 
 n_params = count_parameters(model)
 print( '+---------------------------------+')

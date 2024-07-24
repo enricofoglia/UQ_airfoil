@@ -102,8 +102,8 @@ trainer = Trainer(
 # )
 
 trainer.fit(train_loader, test_loader, 'out/zigzag-10.pt')
-torch.save(train_set.indices, 'out/train_idx.pt')
-torch.save(test_set.indices, 'out/test_idx.pt')
+torch.save(train_idx, 'out/train_idx.pt')
+torch.save(test_idx, 'out/test_idx.pt')
 
 import matplotlib.pyplot as plt
 fig, ax = plt.subplots()

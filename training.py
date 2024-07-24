@@ -70,7 +70,7 @@ class Trainer():
             self.model.train()
             self.training_history.append(self._train_epoch(train_loader, self.model))
             self.test_history.append(self._test_epoch(test_loader, self.model))
-            print(f' Current loss = {self.training_history[-1]}')
+            # print(f' Current loss = {self.training_history[-1]}')
 
             if self.scheduler is not None:
                 self.scheduler.step()

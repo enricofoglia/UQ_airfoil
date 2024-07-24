@@ -22,11 +22,17 @@ from torch_geometric.transforms import Distance, BaseTransform
 import numpy as np
 
 class GeometricData(Data):
+    r'''Class representing a 2D geometric graph. Includes :obj:`tangents` and 
+    :obj:`curvature` methods, provided that the :obj:`TangentVec` transform 
+    has been previously called on an object of this class. 
+    '''
     def __init__(self, x: torch.Tensor | None = None, edge_index: torch.Tensor | None = None, edge_attr: torch.Tensor | None = None, y: torch.Tensor | int | float | None = None, pos: torch.Tensor | None = None, time: torch.Tensor | None = None, **kwargs):
         super().__init__(x, edge_index, edge_attr, y, pos, time, **kwargs)
 
     @property
     def curvature(self):
+        '''Compute the curvature as the turning angle between two consecutive
+        edges. Store it as a scalar vertex feature.'''
         # add curvature by arcos(dot(tangents))
         if hasattr(self, '_curvature'):
             return self._curvature
@@ -62,16 +68,14 @@ class GeometricData(Data):
 
     @property
     def tangents(self):
+        '''The normalized tangent vectors to all edges of the graph.'''
         if not hasattr(self, '_tangents'):
             raise RuntimeError("You must call 'TangentVec' "
                                "on this class before accessing the tangents.")
         return self._tangents
 
 class XFoilDataset(Dataset):
-    '''
-    This implementation of the class is made more complicated apposta
-    in order to be ready when I'll have to make a real dataset.
-    '''
+    
     def __init__(
         self,
         root: Optional[str] = None,
@@ -82,6 +86,15 @@ class XFoilDataset(Dataset):
         log: Optional[bool] = True,
         force_reload: Optional[bool]=True
         ) -> None:
+        '''
+        This implementation of the class is made more complicated then necessary
+        in order to be ready when I'll have to make a real dataset.
+        Class for graphs representing 2D airfoils processed in XFloil. In particular
+        the :obj:`y` attribute is the pressure distribution, and the :obj:`y_glob` one
+        is the aerodynamic efficiency :math:`(c_L/c_D)`. The nodes are supposed to be
+        saved in order starting from the trailing edge, in counter-clockwise order.
+        If :obj:`normalize=True`, standardize the global feature (default :obj:`False`).
+        '''
         # set up raw directory
         self.root = root
         self._raw_file_names = [fname for fname in os.listdir(self.raw_dir)]
@@ -113,8 +126,8 @@ class XFoilDataset(Dataset):
     
     def process(self) -> None:
         '''
-        Read raw data, construct graphs, add some geometric properties
-        and save in compact form.
+        Read raw data, construct graphs, add tangents and edge lengths as edge features 
+        and curvature as vertex features. Save all processed data.
         '''
         if self._processed:
             return
@@ -180,6 +193,9 @@ class XFoilDataset(Dataset):
         return data 
     
     def _compute_norm(self):
+        '''Compute the average and standard deviation of the global feature
+        to perform data normalization. Save them as attributes :obj:`avg`
+        and :obj:`std`, respectively.'''
 
         y_list = []
         for raw_path in self.raw_paths:

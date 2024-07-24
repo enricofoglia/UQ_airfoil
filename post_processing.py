@@ -58,15 +58,15 @@ std_data = dataset.std
 #             out_glob=1
 #             )
 
-# model = ZigZag(
-#             node_features=3+n,
-#             edge_features=3,
-#             hidden_features=64,
-#             n_blocks=6,
-#             out_nodes=1,
-#             out_glob=1,
-#             z0=-10.0
-#             )
+model = ZigZag(
+            node_features=3+n,
+            edge_features=3,
+            hidden_features=64,
+            n_blocks=6,
+            out_nodes=1,
+            out_glob=1,
+            z0=-10.0
+            )
 
 # model = Ensemble(
 #             n_models=5,
@@ -78,18 +78,18 @@ std_data = dataset.std
 #             out_glob=1,
 #             )
 
-model = MCDropout(
-            node_features=3+n,
-            edge_features=3,
-            hidden_features=64,
-            n_blocks=6,
-            out_nodes=1,
-            out_glob=1,
-            dropout=True,
-            p=0.1
-            )
+# model = MCDropout(
+#             node_features=3+n,
+#             edge_features=3,
+#             hidden_features=64,
+#             n_blocks=6,
+#             out_nodes=1,
+#             out_glob=1,
+#             dropout=True,
+#             p=0.1
+#             )
 
-model.load_state_dict(torch.load('out/dropout.pt'))
+model.load_state_dict(torch.load('out/zigzag-10.pt'))
 # for n,single_model in enumerate(model):
     # single_model.load_state_dict(torch.load(f'out/ensemble/ensemble_{n}.pt'))
 

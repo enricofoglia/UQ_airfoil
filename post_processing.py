@@ -32,6 +32,12 @@ pre_transform = FourierEpicycles(n=n)
 root = '/home/daep/e.foglia/Documents/1A/05_uncertainty_quantification/data/airfoils/train_shapes'
 dataset = XFoilDataset(root, normalize=True, pre_transform=pre_transform)
 
+# load train-test split as in training
+train_idx = torch.load('out/train_idx.pt')
+test_idx = torch.load('out/test_idx.pt')
+train_dataset = dataset[train_idx]
+test_dataset  = dataset[test_idx]
+
 avg_data = dataset.avg 
 std_data = dataset.std
 
@@ -85,14 +91,14 @@ print(f'| Total parameter count: {n_params:8d} |')
 print( '+---------------------------------+')
 
 fig, ax = plt.subplots(2,2, sharex=True, sharey=False, layout='constrained')
-indices = random.choices(range(len(dataset)),k=4)
+indices = random.choices(range(len(test_dataset)),k=4)
 print(f'| Selected indices {indices}')
 print( '+---------------------------------+')
 
 for i, ind in enumerate(indices):
     row = i//2
     col = i%2
-    graph = dataset[ind]
+    graph = test_dataset[ind]
     with torch.no_grad():
         if model.kind == 'dropout':
             pred, pred_glob, var, var_glob = model(graph, T=50, return_var=True)
@@ -130,7 +136,7 @@ ax.legend()
 preds = []
 gt    = []
 with torch.no_grad():
-    for graph in tqdm(dataset, desc='Processing dataset ...'):
+    for graph in tqdm(test_dataset, desc='Processing dataset ...'):
         _, pred_glob = model(graph)
         gt.append(graph.y_glob.item())
         preds.append(pred_glob.item())

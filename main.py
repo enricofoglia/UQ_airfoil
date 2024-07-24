@@ -11,6 +11,10 @@ from sklearn.model_selection import train_test_split
 from dataset import XFoilDataset, FourierEpicycles
 from model import EncodeProcessDecode, ZigZag, Ensemble, MCDropout
 from training import Trainer, EnsembleTrainer
+from utils import set_seed
+
+# set seed for reproducibility
+set_seed(42)
 
 # debug: track down anomaly
 # torch.autograd.set_detect_anomaly(True)
@@ -98,6 +102,8 @@ trainer = Trainer(
 # )
 
 trainer.fit(train_loader, test_loader, 'out/zigzag-10.pt')
+torch.save(train_set.indices, 'out/train_idx.pt')
+torch.save(test_set.indices, 'out/test_idx.pt')
 
 import matplotlib.pyplot as plt
 fig, ax = plt.subplots()

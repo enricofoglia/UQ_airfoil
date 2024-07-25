@@ -1,3 +1,8 @@
+<div style="display: flex; justify-content: space-between;">
+  <img src="https://github.com/enricofoglia/UQ_airfoil/blob/main/figures/logo_supaero_colors.png" alt="Image 1 description" style="width:20%;height:auto;">
+  <img src="https://github.com/enricofoglia/UQ_airfoil/blob/main/figures/UdeS_logo_h_rgbHR.png" alt="Image 2 description" style="width:30%;height:auto;">
+</div>
+
 # UQ_airfoil
 Comparison of uncertainty quantification (UQ) techniques for simple graph neural networks (GNNs). All models are trained to predict the aerodynamic performances of NACA four-digits airfoils
 

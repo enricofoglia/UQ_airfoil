@@ -19,7 +19,7 @@ set_seed(42)
 # debug: track down anomaly
 # torch.autograd.set_detect_anomaly(True)
 n = 10
-pre_transform = FourierEpicycles(n=n)
+pre_transform = FourierEpicycles(n=n, cat=False)
 
 root = '/home/daep/e.foglia/Documents/1A/05_uncertainty_quantification/data/airfoils/train_shapes'
 dataset = XFoilDataset(root, normalize=True, pre_transform=pre_transform,
@@ -44,7 +44,7 @@ test_loader = DataLoader(test_set, batch_size=16, shuffle=False)
 #             )
 
 model = ZigZag(
-            node_features=3+n*2,
+            node_features=n,
             edge_features=3,
             hidden_features=64,
             n_blocks=6,
@@ -101,7 +101,7 @@ trainer = Trainer(
 #     scheduler_kwargs={'gamma':gamma}
 # )
 
-trainer.fit(train_loader, test_loader, 'out/zigzag_eigshapes.pt')
+trainer.fit(train_loader, test_loader, 'out/zigzag_eigshapes_xonly_nopos.pt')
 torch.save(train_idx, 'out/train_idx.pt')
 torch.save(test_idx, 'out/test_idx.pt')
 

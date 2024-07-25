@@ -94,6 +94,17 @@ class XFoilDataset(Dataset):
         is the aerodynamic efficiency :math:`(c_L/c_D)`. The nodes are supposed to be
         saved in order starting from the trailing edge, in counter-clockwise order.
         If :obj:`normalize=True`, standardize the global feature (default :obj:`False`).
+
+        Args:
+            root (str, optional): root directoty (default :obj:`None`)
+            normalize (bool, optional): if :obj:`True`, standardize global outputs (default :obj:`False`)
+            transform (Callable, optional): function to call when retrieving a
+                sample (default :obj:`None`)
+            pre_transform (Callable, optional): function to call when initializing
+                the class (default :obj:`None`)    
+            pre_filter (Callable): how to discard samples at initialization (default :obj:`None`)
+            log (bool, optional): whether to print to console while performing actions (default :obj:`True`)
+            force_reload (bool, optional): whether to re-process the dataset. (default :obj:`False`)
         '''
         # set up raw directory
         self.root = root
@@ -241,6 +252,11 @@ class TangentVec(BaseTransform):
     
 class FourierEpicycles(BaseTransform):
     def __init__(self, n:int, cat:Optional[bool]=True) -> None:
+        r'''Compute the Fourier transform of the airfoil seen as a function
+        of a complex variable. Save the first :obj:`n` modes as node features
+        (only the real part is sufficient). If :obj:`cat=False`, overwrite the
+        node features already present. 
+        '''
         super().__init__()
         self.n = n
         self.cat = cat 
@@ -274,10 +290,10 @@ class FourierEpicycles(BaseTransform):
             pseudo = pseudo.view(-1, 1) if pseudo.dim() == 1 else pseudo
             # data.x = torch.cat([pseudo, ampl_repl.type_as(pseudo)], dim=-1)
             data.x = torch.cat([pseudo, eigx.type_as(pseudo)], dim=-1)
-            pseudo = data.x 
-            data.x = torch.cat([pseudo, eigy.type_as(pseudo)], dim=-1)
+            # pseudo = data.x 
+            # data.x = torch.cat([pseudo, eigy.type_as(pseudo)], dim=-1)
         else:
-            data.x = ampl 
+            data.x = eigx 
         
         return data
     

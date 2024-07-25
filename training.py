@@ -34,8 +34,29 @@ class Trainer():
             scheduler:Optional[LRScheduler]=None,
             optim_kwargs:Optional[Dict[str,Any]]=None,
             scheduler_kwargs:Optional[Dict[str,Any]]=None,
+            weight:Optional[float]=0.01
             ) -> None:
-        
+        r'''Class for training single neural networks.
+
+        Args:
+            epochs (int): numper of training epochs
+            model (torch.nn.Module): model to be trained. To distringuish different 
+                architectures, :obj:`model` needs to have the attribute :obj:`kind`.
+            optimizer (torch.optim.Optimizer, optional): an instance of an optimizer
+                yet to be initialized (default :obj:`Adam`).
+            loss_fn (Callable, optional): loss function :math:`\ell(\widehat{y},y)`
+                (default :obj:`MSELoss()`)
+            device (str, optional); type of device (default :obj:`"cpu"`)
+            scheduler (torch.optim.lr_scheduler.LRScheduler or None, optional):
+                learning rate scheduler, to be initialized (default :obj:`None`)
+            optim_kwargs (dict or None, optional): keyword argument to initialize
+                the optimizer (default, :obj:`None`)
+            scheduler_kwargs (dict or None, optional): keyword argument to initialize
+                the scheduler (default, :obj:`None`)
+            weight (float, optional): ratio between the loss of the global and
+                the node level loss (default :obj:`0.01`)
+            
+        '''
         self.epochs = epochs
         self.model = model
         if optim_kwargs is not None:
@@ -53,9 +74,13 @@ class Trainer():
         else:
             self.scheduler = None
 
-        self.weight = 0.01
+        self.weight = weight
 
-    def fit(self, train_loader:DataLoader, test_loader:DataLoader, savefile:Optional[str]='out/best_model.pt'):
+    def fit(self, train_loader:DataLoader, test_loader:DataLoader, 
+            savefile:Optional[str]='out/best_model.pt')-> None:
+        r'''Optimize the model. Save the best model in terms of test 
+        performances in :obj:`"savefile"`.
+        '''
         print( '+----------------------------------+')
         print( '| Training started ...             |')
         print( '+----------------------------------+')
@@ -141,6 +166,18 @@ class Trainer():
 
         return current_loss/batch_count
     
+    def get_train_history(self):
+        r'''Get the training history.'''
+        try: return self.training_history
+        except AttributeError:
+            print('The model has not been trained yet.')
+    
+    def get_test_history(self):
+        r'''Get the test history.'''
+        try: return self.test_history
+        except AttributeError:
+            print('The model has not been trained yet.')
+    
 class EnsembleTrainer(Trainer):
     def __init__(self,
                  epochs: int,
@@ -150,8 +187,29 @@ class EnsembleTrainer(Trainer):
                  device: str | None = 'cpu',
                  scheduler: LRScheduler | None = None,
                  optim_kwargs: Dict[str, Any] | None = None,
-                 scheduler_kwargs: Dict[str, Any] | None = None) -> None:
-        
+                 scheduler_kwargs: Dict[str, Any] | None = None,
+                 weight: float | None = 0.01) -> None:
+        r'''Class to train Ensemble models. Since it is based on the :obj:`Trainer` class,
+        the constituents of the ensemble can be any model supported by the base trainer.
+
+        Args:
+            epochs (int): numper of training epochs
+            ensemble (torch.nn.Module): ensemble to be trained. 
+            optimizer (str, optional): name of the optimizer to be used. Supported 
+                optimizers: :obj:`"adam"`.
+            loss_fn (Callable, optional): loss function :math:`\ell(\widehat{y},y)`
+                (default :obj:`MSELoss()`)
+            device (str, optional); type of device (default :obj:`"cpu"`)
+            scheduler (torch.optim.lr_scheduler.LRScheduler or None, optional):
+                learning rate scheduler, to be initialized (default :obj:`None`)
+            optim_kwargs (dict or None, optional): keyword argument to initialize
+                the optimizer (default, :obj:`None`)
+            scheduler_kwargs (dict or None, optional): keyword argument to initialize
+                the scheduler (default, :obj:`None`)
+            weight (float, optional): ratio between the loss of the global and
+                the node level loss (default :obj:`0.01`)
+
+        '''
         self.epochs = epochs
         self.ensemble = ensemble
         
@@ -164,7 +222,7 @@ class EnsembleTrainer(Trainer):
         self.device = device
 
         
-        self.weight = 0.01
+        self.weight = weight
 
     # TODO: find a way to properly reinitialize optimizer and scheduler
     def _optimizer_init(self, model)->None:
@@ -195,7 +253,11 @@ class EnsembleTrainer(Trainer):
             self.base_scheduler = None
 
 
-    def fit(self, train_loader:DataLoader, test_loader:DataLoader, savefile:Optional[str]='out/best_model.pt'):
+    def fit(self, train_loader:DataLoader, test_loader:DataLoader,
+             savefile:Optional[str]='out/best_model.pt')->None:
+        r'''Optimize the model. Save the best model in terms of test 
+        performances in :obj:`"savefile"`, adding an 'ensemble' directory.
+        '''
         print( '+----------------------------------+')
         print( '| Training started ...             |')
         print( '+----------------------------------+')
@@ -234,7 +296,7 @@ class EnsembleTrainer(Trainer):
 
                 if test_history[-1] < self.best_loss:
                     self.best_loss = test_history[-1]
-                    self.save_checkpoint(model, savefile, n)
+                    self._save_checkpoint(model, savefile, n)
 
             print(f'| Final Loss : {training_history[-1]:<19.3f} |')
             print(f'| Best Loss  : {self.best_loss:<19.3f} |')
@@ -249,10 +311,10 @@ class EnsembleTrainer(Trainer):
         
 
     @property
-    def n_models(self):
+    def n_models(self)->int:
         return len(self.ensemble)
     
-    def save_checkpoint(self, model: Module, filename:str='out/best_model.pt', ensemble_num:int=-1)-> None:
+    def _save_checkpoint(self, model: Module, filename:str='out/best_model.pt', ensemble_num:int=-1)-> None:
         if ensemble_num > -1:
             dir_path = os.path.dirname(filename)
             file_name = os.path.basename(filename)

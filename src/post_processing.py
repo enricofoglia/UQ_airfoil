@@ -66,7 +66,7 @@ model = ZigZag(
             n_blocks=6,
             out_nodes=1,
             out_glob=1,
-            z0=-10.0
+            z0=-2.0, latent =True
             )
 
 # model = Ensemble(
@@ -90,7 +90,7 @@ model = ZigZag(
 #             p=0.1
 #             )
 
-model.load_state_dict(torch.load('../out/zigzag_eigshapes_xonly_nopos.pt'))
+model.load_state_dict(torch.load('../out/zigzag_latent_eigshapes_xonly_nopos.pt'))
 # for n,single_model in enumerate(model):
 #     single_model.load_state_dict(torch.load(f'out/ensemble/ensemble_{n}.pt'))
 

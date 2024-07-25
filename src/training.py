@@ -138,6 +138,16 @@ class Trainer():
                         + self.weight*self.loss_fn(pred_glob1.squeeze(), y_glob.squeeze())
                         + self.loss_fn(pred2.squeeze(), y.squeeze()) 
                         + self.weight*self.loss_fn(pred_glob2.squeeze(), y_glob.squeeze()))
+                
+            elif model.kind == 'latent_zigzag':
+                pred1, pred_glob1, h  = model(batch, return_hidden=True)
+                pred2, pred_glob2  = model(batch, h)
+
+                # the 0.5 helps comparing the loss of zigzag and the simple gnn
+                loss = 0.5*(self.loss_fn(pred1.squeeze(), y.squeeze()) 
+                        + self.weight*self.loss_fn(pred_glob1.squeeze(), y_glob.squeeze())
+                        + self.loss_fn(pred2.squeeze(), y.squeeze()) 
+                        + self.weight*self.loss_fn(pred_glob2.squeeze(), y_glob.squeeze()))
             else:
                 raise ValueError(f'Unrecognized kind of model "{model.kind}"')
             # backpropagate and step

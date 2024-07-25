@@ -50,7 +50,7 @@ model = ZigZag(
             n_blocks=6,
             out_nodes=1,
             out_glob=1,
-            z0=-10.0
+            z0=-2.0, latent=True
             )
 
 # model = Ensemble(
@@ -101,7 +101,7 @@ trainer = Trainer(
 #     scheduler_kwargs={'gamma':gamma}
 # )
 
-trainer.fit(train_loader, test_loader, '../out/zigzag_eigshapes_xonly_nopos.pt')
+trainer.fit(train_loader, test_loader, '../out/zigzag_latent_eigshapes_xonly_nopos.pt')
 torch.save(train_idx, '../out/train_idx.pt')
 torch.save(test_idx, '../out/test_idx.pt')
 
@@ -113,11 +113,11 @@ ax.legend()
 ax.set_xlabel('epoch')
 ax.set_ylabel(r'loss $\mathcal{L}(\theta)$')
 ax.set_title('Training history')
-plt.savefig('out/training_history.png', dpi=300)
+plt.savefig('../out/training_history.png', dpi=300)
 
 fig, ax = plt.subplots()
 ax.semilogy(trainer.lr_history)
 ax.set_xlabel('epoch')
 ax.set_ylabel('learning rate $l_r$')
 ax.set_title('Learing rate history')
-plt.savefig('out/lr_history.png', dpi=300)
+plt.savefig('../out/lr_history.png', dpi=300)

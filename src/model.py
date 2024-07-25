@@ -180,7 +180,7 @@ class EncodeProcessDecode(nn.Module):
             self.decoder_glob = MiniMLP(hidden_features, out_glob, [hidden_features, hidden_features])
 
 
-    def forward(self, data:Data)->Tuple[Tensor, Tensor]:
+    def forward(self, data:Data, return_hidden:bool=False)->Tuple[Tensor, Tensor]:
         x, edge_index, edge_attr = data.x, data.edge_index, data.edge_attr
 
         # encode node and edge features
@@ -200,6 +200,7 @@ class EncodeProcessDecode(nn.Module):
         glob_in = self.node2glob(node_feature, batch,dim=-2)
         glob_out = self.decoder_glob(glob_in)
 
+        if return_hidden: return y, glob_out, node_feature
         return y, glob_out
     
 class ZigZag(EncodeProcessDecode):
@@ -210,7 +211,8 @@ class ZigZag(EncodeProcessDecode):
                 n_blocks: int,
                 out_nodes: int,
                 out_glob: int,
-                z0:Optional[float]=0.0) -> None:
+                z0:Optional[float]=0.0,
+                latent:Optional[bool]=False) -> None:
         r'''Implementation of ZigZag to estimate the epistemic uncertainty of a graph network. 
         ZigZag is based in the intuition that a neural network can be trained
         to recognize its own outputs, so that if it commits a mistake it should
@@ -218,33 +220,48 @@ class ZigZag(EncodeProcessDecode):
 
         Args:
             z0 (float, optional): constant for first pass in the network (default :obj:`0.0`)
+            latent (bool, optional): if :obj:`True`, loop the last latent feature instead of 
+                the output (default :obj:`False`)
         '''
-        super().__init__(node_features+out_nodes, edge_features, hidden_features, n_blocks, out_nodes, out_glob)
-
-        self.kind = 'zigzag'
-        self.out_nodes = out_nodes
+        if latent:
+            super().__init__(node_features+hidden_features, edge_features, 
+                             hidden_features, n_blocks, out_nodes, out_glob)
+            self.kind = 'latent_zigzag'
+            self.dim_reentrant = hidden_features
+        else:
+            super().__init__(node_features+out_nodes, edge_features, 
+                             hidden_features, n_blocks, out_nodes, out_glob)
+            self.kind = 'zigzag'
+            self.dim_reentrant = out_nodes
+        
         self.z0 = z0
 
-    def forward(self, data:Data, y:Optional[Union[None, Tensor]]=None, return_var:bool=False)->Tuple[Tensor, Tensor]:
+    def forward(self, data:Data, y:Optional[Union[None, Tensor]]=None,
+                 return_var:bool=False, return_hidden:bool=False)->Tuple[Tensor, Tensor]:
         r''' If :obj:`return_var=True`, call the model recursively to return mean and variance.
         '''
         if return_var: return self.call_recursively(data)
         datain = copy.deepcopy(data)
         if y is None:
             batch = data.x.shape[0]
-            y = self.z0*torch.ones((batch, self.out_nodes),device=data.x.device)
+            y = self.z0*torch.ones((batch, self.dim_reentrant),device=data.x.device)
 
         datain.x = torch.cat([data.x, y], dim=1)
-        return super().forward(datain)
+        return super().forward(datain, return_hidden=return_hidden)
     
     def call_recursively(self, data:Data):
         r'''Call ZigZag twice to return the epistemic uncertainty on the 
         node and global features.
         '''
-        y1, y_glob1 = self.forward(data)
-        y2, y_glob2 = self.forward(data, y=y1)
+        if self.kind == 'latent_zigzag':
+            y1, y_glob1, h = self.forward(data, return_hidden=True)
+            y2, y_glob2 = self.forward(data, y=h.detach())
+        else:
+            y1, y_glob1 = self.forward(data)
+            y2, y_glob2 = self.forward(data, y=y1.detach())
         return 0.5*(y1+y2), 0.5*(y_glob1+y_glob2), 0.5*(y1-y2)**2,  0.5*(y_glob1-y_glob2)**2
-    
+
+
 class Ensemble(nn.Module):
     def __init__(self,
                  n_models:int,

@@ -1,3 +1,16 @@
+'''
+The base model for predictions is the :py:class:`EncodeProcessDecode` graph convolutional network as defined by Battaglia (2018).
+
+Uncertainty Quantification
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The estimation of the epistemic uncertainty (EU), i.e. the level of confidence of the model in its own prediction, has been implemented in three different ways:
+
+* :py:class:`Ensemble` : trains :math:`n` models. The EU is taken to be the variance between the predictions of the single models.
+* :py:class:`MCDropout` : train one model with dropout layers. At inference time, perform :math:`T` forward passes *with the dropout layers active* and use the variance of the predictions as the EU.
+* :py:class:`ZigZag` : train one model to recognize correct input-output pairs by feeding it back its own predictions. Use the squared difference of the two predictions as the EU. Comes in two flavors: the classic, where the feedback is done with the output, and the "latent" where the feedback is done with the hidden features of the last layer. 
+'''
+
 import copy
 
 import torch
@@ -22,14 +35,15 @@ from typing import (
     )
 
 class MiniMLP(nn.Module):
-    def __init__(self, inputs: int, targets: int, hidden: List[int]) -> None:
-        r'''Simple multilayer perceptron. 
+    r'''Simple multilayer perceptron. 
 
-        Args:
-            inputs (int): dimensionality of the input
-            targets (int): dimensionality of the output
-            hidden (List[int]): dimensionaly of the hidden layers
-        '''
+    Args:
+        inputs (int): dimensionality of the input
+        targets (int): dimensionality of the output
+        hidden (List[int]): dimensionaly of the hidden layers
+    '''
+    def __init__(self, inputs: int, targets: int, hidden: List[int]) -> None:
+        
         super().__init__()
 
         layers = []
@@ -48,31 +62,63 @@ class MiniMLP(nn.Module):
         self.activation = nn.LeakyReLU()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+        '''Forward pass through the network.
+
+        Args:
+            x (torch.Tensor): Input tensor of shape (batch_size, inputs)
+
+        Returns:
+            torch.Tensor: Output tensor of shape (batch_size, targets)
+        '''
         for layer in self.layers[:-1]:
             x = self.activation(layer(x))
         return self.layers[-1](x)
     
 class DropoutMLP(MiniMLP):
-    def __init__(self, inputs: int, targets: int, hidden: List[int],p:float) -> None:
-        r'''Simple multilayer perceptron with dropout layers. 
+    r'''Simple multilayer perceptron with dropout layers. 
 
-        Args:
-            inputs (int): dimensionality of the input
-            targets (int): dimensionality of the output
-            hidden (List[int]): dimensionaly of the hidden layers
-            p (float): probability of dropout
-        '''
+    Args:
+        inputs (int): dimensionality of the input
+        targets (int): dimensionality of the output
+        hidden (List[int]): dimensionaly of the hidden layers
+        p (float): probability of dropout
+    '''
+    def __init__(self, inputs: int, targets: int, hidden: List[int],p:float) -> None:
+        
         super().__init__(inputs, targets, hidden)
 
         self.dropout = nn.Dropout(p=p)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+        '''Forward pass through the network.
+
+        Args:
+            x (torch.Tensor): Input tensor of shape (batch_size, inputs)
+
+        Returns:
+            torch.Tensor: Output tensor of shape (batch_size, targets)
+        '''
         for layer in self.layers[:-1]:
             x = self.dropout(self.activation(layer(x)))
         return self.layers[-1](x)
     
     
 class GNNBlock(pyg.nn.conv.MessagePassing):
+    r'''A graph-convolutional block "à la Google". Start by updating edges
+    using a MLP (with a single hidden layer), then propagate the values to 
+    the neighborhood of every node using the aggregation function. Finally,
+    update the node features using another MLP. For the complete documentation
+    of the inputs, see :obj:`MessagePassing` class.
+
+    Args:
+        node_features (int): dimensionality of the node features
+        edge_features (int): dimensionality of the edge features
+        aggr (str, List[str] or Aggregation, optional): aggregation function.
+            See documentation of :obj:`MessagePassing` class (default :obj:`"sum"`)
+        dropout (bool, optional): whether to include dropout layers in the 
+            mini-MLPs (default :obj:`False`)
+        p (float, optional): probability of dropout (default :obj:`0.1`)
+    '''
     def __init__(
             self,
             node_features:int,
@@ -85,21 +131,7 @@ class GNNBlock(pyg.nn.conv.MessagePassing):
             flow: str = "source_to_target",
             node_dim: int = -2,
             decomposed_layers: int = 1):
-        r'''A graph-convolutional block "à la Google". Start by updating edges
-        using a MLP (with a single hidden layer), then propagate the values to 
-        the neighborhood of every node using the aggregation function. Finally,
-        update the node features using another MLP. For the complete documentation
-        of the inputs, see :obj:`MessagePassing` class.
-
-        Args:
-            node_features (int): dimensionality of the node features
-            edge_features (int): dimensionality of the edge features
-            aggr (str, List[str] or Aggregation, optional): aggregation function.
-                See documentation of :obj:`MessagePassing` class (default :obj:`"sum"`)
-            dropout (bool, optional): whether to include dropout layers in the 
-                mini-MLPs (default :obj:`False`)
-            p (float, optional): probability of dropout (default :obj:`0.1`)
-        '''
+        
         super().__init__(aggr=aggr, aggr_kwargs=aggr_kwargs, flow=flow, node_dim=node_dim,decomposed_layers=decomposed_layers)
 
         self.node_features = node_features
@@ -119,7 +151,7 @@ class GNNBlock(pyg.nn.conv.MessagePassing):
         out = torch_scatter.scatter(inputs, index, dim=self.node_dim,dim_size=dim_size, reduce='mean')
         return (inputs, out)
     
-    def forward(self, x, edge_index, edge_attr):
+    def forward(self, x, edge_index, edge_attr)->Tuple[Tensor, Tensor]:
         edge_out, aggr = self.propagate(edge_index, x=(x,x), edge_attr = edge_attr)
         node_out = self.udpate_node(torch.cat((x, aggr), dim=-1))
         edge_out = edge_out + edge_attr
@@ -128,6 +160,24 @@ class GNNBlock(pyg.nn.conv.MessagePassing):
 
 
 class EncodeProcessDecode(nn.Module):
+    r'''Complete convolutional graph neural network "à la Google". The data
+    flow is composed of three stages:
+    1. Encode the features using an MLP
+    2. Process the latent features using various :obj:`GNNBlock` in series
+    3. Global aggregate and process global features
+    4. Decode node features using an MLP
+
+    Args:
+        node_features (int): dimensionality of the input node features
+        edge_features (int): dimensionality of the input edge features
+        hidden_features (int): dimensionality of the hidden features
+        n_blocks (int): number of :obj:`GNNBlock` in the processor
+        out_nodes (int): dimensionality of the output node features
+        out_glob (int): dimensionality of the output global features
+        dropout (bool, optional): whether to include dropout layers in the 
+            mini-MLPs (default :obj:`False`)
+        p (float, optional): probability of dropout (default :obj:`0.1`)
+    '''
     def __init__(
             self,
             node_features:int,
@@ -139,24 +189,7 @@ class EncodeProcessDecode(nn.Module):
             dropout:Optional[bool]=False,
             p:Optional[float]=0.1
            )->None:
-        r'''Complete convolutional graph neural network "à la Google". The data
-        flow is composed of three stages:
-        1. Encode the features using an MLP
-        2. Process the latent features using various :obj:`GNNBlock` in series
-        3. Global aggregate and process global features
-        4. Decode node features using an MLP
-
-        Args:
-            node_features (int): dimensionality of the input node features
-            edge_features (int): dimensionality of the input edge features
-            hidden_features (int): dimensionality of the hidden features
-            n_blocks (int): number of :obj:`GNNBlock` in the processor
-            out_nodes (int): dimensionality of the output node features
-            out_glob (int): dimensionality of the output global features
-            dropout (bool, optional): whether to include dropout layers in the 
-                mini-MLPs (default :obj:`False`)
-            p (float, optional): probability of dropout (default :obj:`0.1`)
-        '''
+        
         super().__init__()
 
         self.kind = 'simple_gnn'
@@ -181,6 +214,15 @@ class EncodeProcessDecode(nn.Module):
 
 
     def forward(self, data:Data, return_hidden:bool=False)->Tuple[Tensor, Tensor]:
+        '''Forward pass through the network.
+
+        Args:
+            data (Data): Input graph
+            return_hidden (bool, optional): if :obj:`True`, returns also the activations of the last layer (default :obj:`False`)
+
+        Returns:
+            Tuple[Tensor, Tensor]: Output tensors for node features, global features and activations of the last layer (if :obj:`return_hidden=True`)
+        '''
         x, edge_index, edge_attr = data.x, data.edge_index, data.edge_attr
 
         # encode node and edge features
@@ -204,6 +246,16 @@ class EncodeProcessDecode(nn.Module):
         return y, glob_out
     
 class ZigZag(EncodeProcessDecode):
+    r'''Implementation of ZigZag to estimate the epistemic uncertainty of a graph network. 
+    ZigZag is based in the intuition that a neural network can be trained
+    to recognize its own outputs, so that if it commits a mistake it should
+    be able to detect it. To see a complete list of inputs, see :obj:`EncodeProcessDecode`.
+
+    Args:
+        z0 (float, optional): constant for first pass in the network (default :obj:`0.0`)
+        latent (bool, optional): if :obj:`True`, loop the last latent feature instead of 
+            the output (default :obj:`False`)
+    '''
     def __init__(self,
                 node_features: int,
                 edge_features: int,
@@ -213,16 +265,7 @@ class ZigZag(EncodeProcessDecode):
                 out_glob: int,
                 z0:Optional[float]=0.0,
                 latent:Optional[bool]=False) -> None:
-        r'''Implementation of ZigZag to estimate the epistemic uncertainty of a graph network. 
-        ZigZag is based in the intuition that a neural network can be trained
-        to recognize its own outputs, so that if it commits a mistake it should
-        be able to detect it. To see a complete list of inputs, see :obj:`EncodeProcessDecode`.
-
-        Args:
-            z0 (float, optional): constant for first pass in the network (default :obj:`0.0`)
-            latent (bool, optional): if :obj:`True`, loop the last latent feature instead of 
-                the output (default :obj:`False`)
-        '''
+        
         if latent:
             super().__init__(node_features+hidden_features, edge_features, 
                              hidden_features, n_blocks, out_nodes, out_glob)
@@ -236,11 +279,18 @@ class ZigZag(EncodeProcessDecode):
         
         self.z0 = z0
 
-    def forward(self, data:Data, y:Optional[Union[None, Tensor]]=None,
+    def forward(self, data:Data, y:Optional[Tensor]=None,
                  return_var:bool=False, return_hidden:bool=False)->Tuple[Tensor, Tensor]:
-        r''' If :obj:`return_var=True`, call the model recursively to return mean and variance.
+        r'''
+        Performs a forward pass in the network.
+
+        Args:
+            data (Data): input graph
+            y (Tensor, optional): feedback loop. If :obj:`None`, uses :obj:`self.z0` (default :obj:`None`)
+            return_var (bool, optional): if :obj:`True`, return prediction and variance by calling the model twice.
+            return_hidden (bool, optional): if :obj:`True`, returns also the activations of the last layer (default :obj:`False`)
         '''
-        if return_var: return self.call_recursively(data)
+        if return_var: return self._call_recursively(data)
         datain = copy.deepcopy(data)
         if y is None:
             batch = data.x.shape[0]
@@ -249,7 +299,7 @@ class ZigZag(EncodeProcessDecode):
         datain.x = torch.cat([data.x, y], dim=1)
         return super().forward(datain, return_hidden=return_hidden)
     
-    def call_recursively(self, data:Data):
+    def _call_recursively(self, data:Data):
         r'''Call ZigZag twice to return the epistemic uncertainty on the 
         node and global features.
         '''
@@ -263,6 +313,13 @@ class ZigZag(EncodeProcessDecode):
 
 
 class Ensemble(nn.Module):
+    r'''Ensemble class. See it as a list of models, to be trained independently.
+    The base model is the :obj:`EncodeProcessDecode` GNN, see its documentation 
+    for a complete list of inputs.
+
+    Args:
+        n_models (int): number of particles in the ensemble.
+    '''
     def __init__(self,
                  n_models:int,
                 node_features:int,
@@ -272,13 +329,7 @@ class Ensemble(nn.Module):
                 out_nodes:int,
                 out_glob:int,
             )->None:
-        r'''Ensemble class. See it as a list of models, to be trained independently.
-        The base model is the :obj:`EncodeProcessDecode` GNN, see its documentation 
-        for a complete list of inputs.
-
-        Args:
-            n_models (int): number of particles in the ensemble.
-        '''
+        
         super().__init__()
 
         self.kind = 'ensemble'
@@ -292,7 +343,13 @@ class Ensemble(nn.Module):
         ) for _ in range(n_models)]
 
     def forward(self, data:Data, return_var:bool=False)->Tuple[Tensor, Tensor]:
-        r'''If :obj:`return_var=True` return mean and variance.'''
+        r'''
+        Performs a forward pass in the network.
+
+        Args:
+            data (Data): input graph
+            return_var (bool, optional): if :obj:`True`, return prediction and variance by computing the variance of the predictions of the single models.
+        '''
         y_list = []
         glob_list = []
         for model in self.models_list:
@@ -319,6 +376,10 @@ class Ensemble(nn.Module):
         return self.models_list[idx]
     
 class MCDropout(EncodeProcessDecode):
+    r'''Class for graph-net MC Dropout method for epistemic uncertainty evaluation.
+    Based on the :obj:`EncodeProcessDecode` class, see its documentation for 
+    complete list of inputs.
+    '''
     def __init__(self, node_features: int,
                  edge_features: int,
                  hidden_features: int,
@@ -327,10 +388,7 @@ class MCDropout(EncodeProcessDecode):
                  out_glob: int,
                  dropout: bool | None = True,
                  p:Optional[float]=0.1):
-        r'''Class for graph-net MC Dropout method for epistemic uncertainty evaluation.
-        Based on the :obj:`EncodeProcessDecode` class, see its documentation for 
-        complete list of inputs.
-        '''
+        
         
         super().__init__(node_features,
                          edge_features,
@@ -343,8 +401,12 @@ class MCDropout(EncodeProcessDecode):
         self.kind= 'dropout'
         
     def forward(self,  data:Data, T:Optional[int]=1, return_var:bool=False):
-        r'''Call the model :obj:`T` times. If :obj:`return_var=True` return mean
-        and variance.
+        r'''Performs a forward pass in the network.
+
+        Args:
+            data (Data): input graph
+            T (int, optional): how many forward passes are used in the network (default :obj:`1`)
+            return_var (bool, optional): if :obj:`True`, return prediction and variance by calling the model twice.
         '''
         if T == 1:
             return super().forward(data)

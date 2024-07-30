@@ -1,3 +1,14 @@
+'''
+Train single neural networks using :py:class:`Trainer` and ensembles using :py:class:`EnsembleTrainer`. 
+
+.. warning:: To use these classes on new models, you need to include a new :obj:`kind` in :obj:`_train_epoch` and :obj:`_test_epoch`.
+
+To do: 
+^^^^^^
+* Differentiate loss function for node and global features
+* Make the requirement for :obj:`kind` softer: throws a warning but tries something anyway
+'''
+
 import os
 import copy
 
@@ -24,39 +35,40 @@ from tqdm import tqdm
 
 
 class Trainer():
+    r'''Class for training single neural networks.
+
+    Args:
+        epochs (int): numper of training epochs
+        model (torch.nn.Module): model to be trained. To distringuish different 
+            architectures, :obj:`model` needs to have the attribute :obj:`kind`.
+        optimizer (torch.optim.Optimizer, optional): an instance of an optimizer
+            yet to be initialized (default :obj:`Adam`).
+        loss_fn (Callable, optional): loss function :math:`\ell(\widehat{y},y)`
+            (default :obj:`MSELoss()`)
+        device (str, optional); type of device (default :obj:`"cpu"`)
+        scheduler (torch.optim.lr_scheduler.LRScheduler or None, optional):
+            learning rate scheduler, to be initialized (default :obj:`None`)
+        optim_kwargs (dict or None, optional): keyword argument to initialize
+            the optimizer (default, :obj:`None`)
+        scheduler_kwargs (dict or None, optional): keyword argument to initialize
+            the scheduler (default, :obj:`None`)
+        weight (float, optional): ratio between the loss of the global and
+            the node level loss (default :obj:`0.01`)
+        
+    '''
     def __init__(
             self,
             epochs:int,
             model:Module,
             optimizer:Optional[Optimizer]=Adam,
-            loss_fn:Optional[Callable]=MSELoss(),
+            loss_fn:Optional[Callable[..., Any]]=MSELoss(),
             device:Optional[str]='cpu',
             scheduler:Optional[LRScheduler]=None,
             optim_kwargs:Optional[Dict[str,Any]]=None,
             scheduler_kwargs:Optional[Dict[str,Any]]=None,
             weight:Optional[float]=0.01
             ) -> None:
-        r'''Class for training single neural networks.
-
-        Args:
-            epochs (int): numper of training epochs
-            model (torch.nn.Module): model to be trained. To distringuish different 
-                architectures, :obj:`model` needs to have the attribute :obj:`kind`.
-            optimizer (torch.optim.Optimizer, optional): an instance of an optimizer
-                yet to be initialized (default :obj:`Adam`).
-            loss_fn (Callable, optional): loss function :math:`\ell(\widehat{y},y)`
-                (default :obj:`MSELoss()`)
-            device (str, optional); type of device (default :obj:`"cpu"`)
-            scheduler (torch.optim.lr_scheduler.LRScheduler or None, optional):
-                learning rate scheduler, to be initialized (default :obj:`None`)
-            optim_kwargs (dict or None, optional): keyword argument to initialize
-                the optimizer (default, :obj:`None`)
-            scheduler_kwargs (dict or None, optional): keyword argument to initialize
-                the scheduler (default, :obj:`None`)
-            weight (float, optional): ratio between the loss of the global and
-                the node level loss (default :obj:`0.01`)
-            
-        '''
+        
         self.epochs = epochs
         self.model = model
         if optim_kwargs is not None:
@@ -189,6 +201,27 @@ class Trainer():
             print('The model has not been trained yet.')
     
 class EnsembleTrainer(Trainer):
+    r'''Class to train Ensemble models. Since it is based on the :obj:`Trainer` class,
+    the constituents of the ensemble can be any model supported by the base trainer.
+
+    Args:
+        epochs (int): numper of training epochs
+        ensemble (Module): ensemble to be trained. 
+        optimizer (str, optional): name of the optimizer to be used. Supported 
+            optimizers: :obj:`"adam"`.
+        loss_fn (Callable, optional): loss function :math:`\ell(\widehat{y},y)`
+            (default :obj:`MSELoss()`)
+        device (str, optional); type of device (default :obj:`"cpu"`)
+        scheduler (LRScheduler or None, optional):
+            learning rate scheduler, to be initialized (default :obj:`None`)
+        optim_kwargs (dict or None, optional): keyword argument to initialize
+            the optimizer (default, :obj:`None`)
+        scheduler_kwargs (dict or None, optional): keyword argument to initialize
+            the scheduler (default, :obj:`None`)
+        weight (float, optional): ratio between the loss of the global and
+            the node level loss (default :obj:`0.01`)
+
+    '''
     def __init__(self,
                  epochs: int,
                  ensemble: Module,
@@ -199,27 +232,7 @@ class EnsembleTrainer(Trainer):
                  optim_kwargs: Dict[str, Any] | None = None,
                  scheduler_kwargs: Dict[str, Any] | None = None,
                  weight: float | None = 0.01) -> None:
-        r'''Class to train Ensemble models. Since it is based on the :obj:`Trainer` class,
-        the constituents of the ensemble can be any model supported by the base trainer.
-
-        Args:
-            epochs (int): numper of training epochs
-            ensemble (torch.nn.Module): ensemble to be trained. 
-            optimizer (str, optional): name of the optimizer to be used. Supported 
-                optimizers: :obj:`"adam"`.
-            loss_fn (Callable, optional): loss function :math:`\ell(\widehat{y},y)`
-                (default :obj:`MSELoss()`)
-            device (str, optional); type of device (default :obj:`"cpu"`)
-            scheduler (torch.optim.lr_scheduler.LRScheduler or None, optional):
-                learning rate scheduler, to be initialized (default :obj:`None`)
-            optim_kwargs (dict or None, optional): keyword argument to initialize
-                the optimizer (default, :obj:`None`)
-            scheduler_kwargs (dict or None, optional): keyword argument to initialize
-                the scheduler (default, :obj:`None`)
-            weight (float, optional): ratio between the loss of the global and
-                the node level loss (default :obj:`0.01`)
-
-        '''
+        
         self.epochs = epochs
         self.ensemble = ensemble
         

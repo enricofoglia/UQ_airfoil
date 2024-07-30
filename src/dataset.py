@@ -1,3 +1,6 @@
+'''This module includes all functions and classes to take care of the data preprocessing. The main class to be used is :py:class:`XFoilDataset`, which takes care of everything. 
+'''
+
 import os.path as osp
 import os
 
@@ -75,7 +78,26 @@ class GeometricData(Data):
         return self._tangents
 
 class XFoilDataset(Dataset):
-    
+    '''
+    This implementation of the class is made more complicated then necessary
+    in order to be ready when I'll have to make a real dataset.
+    Class for graphs representing 2D airfoils processed in XFloil. In particular
+    the :obj:`y` attribute is the pressure distribution, and the :obj:`y_glob` one
+    is the aerodynamic efficiency :math:`(c_L/c_D)`. The nodes are supposed to be
+    saved in order starting from the trailing edge, in counter-clockwise order.
+    If :obj:`normalize=True`, standardize the global feature (default :obj:`False`).
+
+    Args:
+        root (str, optional): root directoty (default :obj:`None`)
+        normalize (bool, optional): if :obj:`True`, standardize global outputs (default :obj:`False`)
+        transform (Callable, optional): function to call when retrieving a
+            sample (default :obj:`None`)
+        pre_transform (Callable, optional): function to call when initializing
+            the class (default :obj:`None`)    
+        pre_filter (Callable): how to discard samples at initialization (default :obj:`None`)
+        log (bool, optional): whether to print to console while performing actions (default :obj:`True`)
+        force_reload (bool, optional): whether to re-process the dataset. (default :obj:`False`)
+    '''
     def __init__(
         self,
         root: Optional[str] = None,
@@ -86,26 +108,7 @@ class XFoilDataset(Dataset):
         log: Optional[bool] = True,
         force_reload: Optional[bool]=True
         ) -> None:
-        '''
-        This implementation of the class is made more complicated then necessary
-        in order to be ready when I'll have to make a real dataset.
-        Class for graphs representing 2D airfoils processed in XFloil. In particular
-        the :obj:`y` attribute is the pressure distribution, and the :obj:`y_glob` one
-        is the aerodynamic efficiency :math:`(c_L/c_D)`. The nodes are supposed to be
-        saved in order starting from the trailing edge, in counter-clockwise order.
-        If :obj:`normalize=True`, standardize the global feature (default :obj:`False`).
-
-        Args:
-            root (str, optional): root directoty (default :obj:`None`)
-            normalize (bool, optional): if :obj:`True`, standardize global outputs (default :obj:`False`)
-            transform (Callable, optional): function to call when retrieving a
-                sample (default :obj:`None`)
-            pre_transform (Callable, optional): function to call when initializing
-                the class (default :obj:`None`)    
-            pre_filter (Callable): how to discard samples at initialization (default :obj:`None`)
-            log (bool, optional): whether to print to console while performing actions (default :obj:`True`)
-            force_reload (bool, optional): whether to re-process the dataset. (default :obj:`False`)
-        '''
+        
         # set up raw directory
         self.root = root
         self._raw_file_names = [fname for fname in os.listdir(self.raw_dir)]
@@ -251,12 +254,13 @@ class TangentVec(BaseTransform):
         return f'{self.__class__.__name__}(norm={self.norm})'
     
 class FourierEpicycles(BaseTransform):
+    r'''Compute the Fourier transform of the airfoil seen as a function
+    of a complex variable. Save the first :obj:`n` modes as node features
+    (only the real part is sufficient). If :obj:`cat=False`, overwrite the
+    node features already present. 
+    '''
     def __init__(self, n:int, cat:Optional[bool]=True) -> None:
-        r'''Compute the Fourier transform of the airfoil seen as a function
-        of a complex variable. Save the first :obj:`n` modes as node features
-        (only the real part is sufficient). If :obj:`cat=False`, overwrite the
-        node features already present. 
-        '''
+        
         super().__init__()
         self.n = n
         self.cat = cat 

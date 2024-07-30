@@ -1,3 +1,6 @@
+'''
+Evaluate the quality of the predictions and their uncertainty. 
+'''
 import warnings
 
 from typing import (
@@ -73,18 +76,17 @@ def ece_plot(y_test:np.ndarray, mu:np.ndarray, var:np.ndarray,
               )->Union[float, Tuple[float,np.ndarray,np.ndarray]]:
     r'''Produce the variance-calibration curve and return the Expected 
     Calibration Error metric. Based of the definition of calibration:
+    
     .. math::
         \widehat{\sigma}_{\theta}(x) = \mathbb{E}_{X,Y}[(\widehat{\mu}_{\theta}(X)-Y)^2
-        \vert \widehat{\sigma}_{\theta}(X)=\widehat{\sigma}_{\theta}(x)]
+        \;\vert\; \widehat{\sigma}_{\theta}(X)=\widehat{\sigma}_{\theta}(x)]
 
     Args:
         y_test (numpy.ndarray): ground truth data
         preds (numpy.ndarray): predicted mean
         std (numpy.ndarray): predicted standard deviation
         B (int, optional): number of bins (default :obj:`20`)
-        binning (str, optional): type of binning can be either equal width
-        bins (:obj:`"equal"`), equal number of samples per bin (:obj:`"quantile"`)
-        or by k-means clustering (:obj:`"k-means"`) (default :obj:`"equal"`)
+        binning (str, optional): type of binning can be either equal width bins (:obj:`"equal"`), equal number of samples per bin (:obj:`"quantile"`) or by k-means clustering (:obj:`"k-means"`) (default :obj:`"equal"`)
         plot (bool, optional): wheater to plot the results (default :obj:`True`)
         order (int, optional): order of the calibration (default :obj:`1`)
         get_values (bool, optional): wheter to return the rmse and rmv arrays (default :obj:`False`)
@@ -152,13 +154,3 @@ def ece_plot(y_test:np.ndarray, mu:np.ndarray, var:np.ndarray,
         ax.legend()
     if get_values: return ence, rmv, rmse
     else: return ence
-
-def correlation_coef(x_test, model):
-    if model.kind != 'ensemble':
-        warnings.warn('Method implemented only for ensembles.')
-        return -1
-    
-    with torch.no_grad():
-        _, var_alea, _ = model(x_test, separate_var=True, mean_type='geometric')
-        _, var_tot = model(x_test)
-    return 1-var_alea/var_tot

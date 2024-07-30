@@ -249,6 +249,7 @@
         <article role="main" id="furo-main-content">
           <section id="module-metrics">
 <span id="metrics"></span><h1>metrics<a class="headerlink" href="#module-metrics" title="Link to this heading">¶</a></h1>
+<p>Evaluate the quality of the predictions and their uncertainty.</p>
 <p class="rubric">Functions</p>
 <div class="table-wrapper autosummary longtable docutils container">
 <table class="autosummary longtable docutils align-default">
@@ -256,10 +257,7 @@
 <tr class="row-odd"><td><p><a class="reference internal" href="../metrics.html#metrics.auce_plot" title="metrics.auce_plot"><code class="xref py py-obj docutils literal notranslate"><span class="pre">auce_plot</span></code></a>(y, preds, std[, plot, get_values])</p></td>
 <td><p>Plot the quatile calibration curve and return the Area Under the Calibration Error curve metric.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="../metrics.html#metrics.correlation_coef" title="metrics.correlation_coef"><code class="xref py py-obj docutils literal notranslate"><span class="pre">correlation_coef</span></code></a>(x_test, model)</p></td>
-<td><p></p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="../metrics.html#metrics.ece_plot" title="metrics.ece_plot"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ece_plot</span></code></a>(y_test, mu, var[, B, binning, ...])</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="../metrics.html#metrics.ece_plot" title="metrics.ece_plot"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ece_plot</span></code></a>(y_test, mu, var[, B, binning, ...])</p></td>
 <td><p>Produce the variance-calibration curve and return the Expected Calibration Error metric.</p></td>
 </tr>
 </tbody>
@@ -287,11 +285,6 @@ arrays (default <code class="xref py py-obj docutils literal notranslate"><span 
 </dd></dl>
 
 <dl class="py function">
-<dt class="sig sig-object py" id="metrics.correlation_coef">
-<span class="sig-prename descclassname"><span class="pre">metrics.</span></span><span class="sig-name descname"><span class="pre">correlation_coef</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x_test</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">model</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#metrics.correlation_coef" title="Link to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="py function">
 <dt class="sig sig-object py" id="metrics.ece_plot">
 <span class="sig-prename descclassname"><span class="pre">metrics.</span></span><span class="sig-name descname"><span class="pre">ece_plot</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">y_test</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mu</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">var</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">B</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">20</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">binning</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'equal'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">plot</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">order</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">get_values</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">float</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">ndarray</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">ndarray</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#metrics.ece_plot" title="Link to this definition">¶</a></dt>
 <dd><p>Produce the variance-calibration curve and return the Expected
@@ -299,7 +292,7 @@ Calibration Error metric. Based of the definition of calibration:</p>
 <div class="math-wrapper docutils container">
 <div class="math notranslate nohighlight">
 \[\widehat{\sigma}_{\theta}(x) = \mathbb{E}_{X,Y}[(\widehat{\mu}_{\theta}(X)-Y)^2
-\vert \widehat{\sigma}_{\theta}(X)=\widehat{\sigma}_{\theta}(x)]\]</div>
+\;\vert\; \widehat{\sigma}_{\theta}(X)=\widehat{\sigma}_{\theta}(x)]\]</div>
 </div>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -308,9 +301,7 @@ Calibration Error metric. Based of the definition of calibration:</p>
 <li><p><strong>preds</strong> (<em>numpy.ndarray</em>) – predicted mean</p></li>
 <li><p><strong>std</strong> (<em>numpy.ndarray</em>) – predicted standard deviation</p></li>
 <li><p><strong>B</strong> (<em>int</em><em>, </em><em>optional</em>) – number of bins (default <code class="xref py py-obj docutils literal notranslate"><span class="pre">20</span></code>)</p></li>
-<li><p><strong>binning</strong> (<em>str</em><em>, </em><em>optional</em>) – type of binning can be either equal width</p></li>
-<li><p><strong>bins</strong> (<code class="xref py py-obj docutils literal notranslate"><span class="pre">&quot;equal&quot;</span></code>), equal number of samples per bin (<code class="xref py py-obj docutils literal notranslate"><span class="pre">&quot;quantile&quot;</span></code>)</p></li>
-<li><p><strong>clustering</strong> (<em>or by k-means</em>)</p></li>
+<li><p><strong>binning</strong> (<em>str</em><em>, </em><em>optional</em>) – type of binning can be either equal width bins (<code class="xref py py-obj docutils literal notranslate"><span class="pre">&quot;equal&quot;</span></code>), equal number of samples per bin (<code class="xref py py-obj docutils literal notranslate"><span class="pre">&quot;quantile&quot;</span></code>) or by k-means clustering (<code class="xref py py-obj docutils literal notranslate"><span class="pre">&quot;k-means&quot;</span></code>) (default <code class="xref py py-obj docutils literal notranslate"><span class="pre">&quot;equal&quot;</span></code>)</p></li>
 <li><p><strong>plot</strong> (<em>bool</em><em>, </em><em>optional</em>) – wheater to plot the results (default <code class="xref py py-obj docutils literal notranslate"><span class="pre">True</span></code>)</p></li>
 <li><p><strong>order</strong> (<em>int</em><em>, </em><em>optional</em>) – order of the calibration (default <code class="xref py py-obj docutils literal notranslate"><span class="pre">1</span></code>)</p></li>
 <li><p><strong>get_values</strong> (<em>bool</em><em>, </em><em>optional</em>) – wheter to return the rmse and rmv arrays (default <code class="xref py py-obj docutils literal notranslate"><span class="pre">False</span></code>)</p></li>
@@ -370,7 +361,6 @@ Calibration Error metric. Based of the definition of calibration:</p>
             <ul>
 <li><a class="reference internal" href="#">metrics</a><ul>
 <li><a class="reference internal" href="#metrics.auce_plot"><code class="docutils literal notranslate"><span class="pre">auce_plot()</span></code></a></li>
-<li><a class="reference internal" href="#metrics.correlation_coef"><code class="docutils literal notranslate"><span class="pre">correlation_coef()</span></code></a></li>
 <li><a class="reference internal" href="#metrics.ece_plot"><code class="docutils literal notranslate"><span class="pre">ece_plot()</span></code></a></li>
 </ul>
 </li>

@@ -390,7 +390,18 @@ if __name__ == '__main__':
 
         ax.set_title(r'Eigenshape $\phi_{{n}}(\vartheta)$, $n$={0}'.format(n))
 
+    def plot_graph_subsample(graph, skip=3):
+        fig, ax = plt.subplots(layout='constrained')
+        v_us = graph.pos[::skip,:]
+        ax.plot(v_us[:,0],v_us[:,1], 'ko-', mfc='w', ms=10)
+        ax.set_xlabel(r'$x/c$ [-]')
+        ax.set_ylabel(r'$y/c$ [-]')
+        ax.axis('equal')
+        ax.set_axis_off()
+        
 
+    plot_graph_subsample(graph, skip=5)
+    plt.savefig('../out/figures/airfoil_graph.png', dpi=300, transparent=True)
     plot_graph_curvature(graph)
     # plt.show()
 

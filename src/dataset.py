@@ -370,32 +370,25 @@ if __name__ == '__main__':
         ax.set_title('Fourier transform')
         ax.set_yscale('log')
         
-    def plot_graph_eigenshapes(graph,n,N):
+    def plot_graph_eigenshapes(graph,n):
         eigx = graph.x[:,3+n]
-        eigy = graph.x[:,3+n+N]
-        fig, ax = plt.subplots(2,1,sharex=True,layout='constrained')
-        scx = ax[0].scatter(graph.pos[:,0], graph.pos[:,1], c=eigx, cmap='RdYlBu_r',
-                         edgecolors='k', zorder=2.5)
-        scy = ax[1].scatter(graph.pos[:,0], graph.pos[:,1], c=eigy, cmap='RdYlBu_r',
-                         edgecolors='k', zorder=2.5)
+        fig, ax = plt.subplots(layout='constrained')
+        scx = ax.scatter(graph.pos[:,0], graph.pos[:,1], c=eigx, cmap='RdYlBu_r', edgecolors='k', zorder=2.5)
+
         num_edges = graph.edge_index.shape[1]
         for i in range(num_edges):
             start_idx = graph.edge_index[0, i].item()
             end_idx = graph.edge_index[1, i].item()
             start_coords = graph.pos[start_idx]
             end_coords = graph.pos[end_idx]
-            ax[0].plot([start_coords[0], end_coords[0]], [start_coords[1], end_coords[1]], c='black', 
-                     alpha=0.6)
-            ax[1].plot([start_coords[0], end_coords[0]], [start_coords[1], end_coords[1]], c='black', 
-                     alpha=0.6)
-        plt.colorbar(scx, ax=ax[0], label=r'amplitude, x')
-        plt.colorbar(scy, ax=ax[1], label=r'amplitude, y')
-        ax[1].set_xlabel(r'$x/c$ [-]')
-        for i in range(2):
-            ax[i].set_ylabel(r'$y/c$ [-]')
-            ax[i].axis('equal')
+            ax.plot([start_coords[0], end_coords[0]], [start_coords[1], end_coords[1]], c='black', alpha=0.6)
+            
+        plt.colorbar(scx, ax=ax, label=r'amplitude, x')
+        ax.set_xlabel(r'$x/c$ [-]')
+        ax.set_ylabel(r'$y/c$ [-]')
+        ax.axis('equal')
 
-        fig.suptitle(r'Eigenshape $\phi_{{n}}(\vartheta)$, $n$={0}'.format(n))
+        ax.set_title(r'Eigenshape $\phi_{{n}}(\vartheta)$, $n$={0}'.format(n))
 
 
     plot_graph_curvature(graph)
@@ -404,10 +397,10 @@ if __name__ == '__main__':
     # plot_graph_fourier(graph)
     # plt.show()
 
-    plot_graph_eigenshapes(graph, 0,N)
-    plot_graph_eigenshapes(graph, 1,N)
-    plot_graph_eigenshapes(graph, 5,N)
-    plot_graph_eigenshapes(graph, 10,N)
+    plot_graph_eigenshapes(graph, 0)
+    plot_graph_eigenshapes(graph, 1)
+    plot_graph_eigenshapes(graph, 5)
+    plot_graph_eigenshapes(graph, 10)
     plt.show()
 
 

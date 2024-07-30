@@ -92,7 +92,7 @@ model = ZigZag(
 
 model.load_state_dict(torch.load('../out/zigzag_latent_eigshapes_xonly_nopos.pt'))
 # for n,single_model in enumerate(model):
-#     single_model.load_state_dict(torch.load(f'out/ensemble/ensemble_{n}.pt'))
+    # single_model.load_state_dict(torch.load(f'../out/ensemble/ensemble_{n}.pt'))
 
 n_params = count_parameters(model)
 print( '+---------------------------------+')

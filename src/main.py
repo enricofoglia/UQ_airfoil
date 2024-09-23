@@ -18,7 +18,7 @@ set_seed(42)
 
 # debug: track down anomaly
 # torch.autograd.set_detect_anomaly(True)
-n = 10
+n = 20
 pre_transform = FourierEpicycles(n=n, cat=False)
 
 root = '/home/daep/e.foglia/Documents/1A/05_uncertainty_quantification/data/airfoils/train_shapes'

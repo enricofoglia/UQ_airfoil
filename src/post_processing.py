@@ -34,7 +34,7 @@ plt.rcParams.update({
 
 set_seed(42)
 
-n = 10
+n = 20
 pre_transform = FourierEpicycles(n=n, cat=False)
 
 root = '/home/daep/e.foglia/Documents/1A/05_uncertainty_quantification/data/airfoils/train_shapes'
@@ -101,6 +101,12 @@ print( '+---------------------------------+')
 
 fig, ax = plt.subplots(2,2, sharex=True, sharey=False, layout='constrained',
                        figsize=(9,6))
+
+# randomize sample selection
+import time 
+tic = int(time.time())
+random.seed(tic)
+
 indices = random.choices(range(len(test_dataset)),k=4)
 print(f'| Selected indices {indices}')
 print( '+---------------------------------+')

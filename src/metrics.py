@@ -71,8 +71,8 @@ def auce_plot(y:np.ndarray, preds:np.ndarray, std:np.ndarray,
 # @title ENCE metric
 def ece_plot(y_test:np.ndarray, mu:np.ndarray, var:np.ndarray,
               B:Optional[int] = 20, binning:Optional[str]='equal',
-              plot:Optional[bool]=True,order:Optional[int]=1,
-              get_values:Optional[bool]=False
+              plot:Optional[bool]=True, order:Optional[int]=1,
+              get_values:Optional[bool]=False, use_last:Optional[bool]=False
               )->Union[float, Tuple[float,np.ndarray,np.ndarray]]:
     r'''Produce the variance-calibration curve and return the Expected 
     Calibration Error metric. Based of the definition of calibration:
@@ -90,10 +90,14 @@ def ece_plot(y_test:np.ndarray, mu:np.ndarray, var:np.ndarray,
         plot (bool, optional): wheater to plot the results (default :obj:`True`)
         order (int, optional): order of the calibration (default :obj:`1`)
         get_values (bool, optional): wheter to return the rmse and rmv arrays (default :obj:`False`)
+        use_last (bool, optional): wheter to use the last bin in the calculation
     '''
 
     # sort and bin by increasing std
-    var = np.sort(var)
+    indices = np.argsort(var)
+    var = var[indices]
+    y_test = y_test[indices]
+    mu = mu[indices]
     if binning == 'equal':
         bin_edges = np.linspace(var.min(), var.max(), B + 1)
         bins = np.digitize(var, bin_edges)
@@ -128,6 +132,11 @@ def ece_plot(y_test:np.ndarray, mu:np.ndarray, var:np.ndarray,
     rmv = rmv[indices]
     rmse = rmse[indices]
     bin_size = bin_size[indices]
+
+    if not use_last:
+        rmv = rmv[:-1]
+        rmse = rmse[:-1]
+        bin_size = bin_size[:-1]
 
 
     # ence = np.mean(np.abs(rmv-rmse)/rmv)

@@ -20,11 +20,19 @@ Use example
 
 Here is how you can use this package::
 
+   import torch 
+   from torch.optim import Adam
+   from torch.optim.lr_scheduler import ExponentialLR
+
+   from torch_geometric.loader import DataLoader
+
+   from sklearn.model_selection import train_test_split
+
    from dataset import XFoilDataset, FourierEpicycles
    from model import ZigZag
-   from training import Trainer, 
+   from training import Trainer 
 
-   pre_transform = FourierEpicycles(n=10, cat=False)
+   pre_transform = FourierEpicycles(n=10, cat=True)
 
    root = '../data'
    dataset = XFoilDataset(root, normalize=True, pre_transform=pre_transform,
@@ -69,4 +77,4 @@ Here is how you can use this package::
    )
 
    # fit model
-   trainer.fit(train_loader, test_loader, '../out/best_model.pt')
+   trainer.fit(train_loader, test_loader, savefile='../out/best_model.pt')

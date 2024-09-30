@@ -9,7 +9,8 @@ from typing import (
     Tuple,
     Union, 
     Optional,
-    Callable
+    Callable,
+    Any
     )
 
 import json
@@ -23,6 +24,8 @@ from torch_geometric.data import Dataset, Data
 from torch_geometric.transforms import Distance, BaseTransform
 
 import numpy as np
+
+import airfrans as af
 
 class GeometricData(Data):
     r'''Class representing a 2D geometric graph. Includes :obj:`tangents` and 
@@ -220,7 +223,146 @@ class XFoilDataset(Dataset):
         self.avg = torch.mean(torch.tensor(y_list))
         self.std = torch.std(torch.tensor(y_list))
 
+class AirfRANSDataset(Dataset):
+    def __init__(self,
+                 task: str,
+                 train: bool | None = True,
+                 root: str | None = None,
+                 normalize: bool | None = True,
+                 transform: Callable[..., Any] | None = None,
+                 pre_transform: Callable[..., Any] | None = None,
+                 pre_filter: Callable[..., Any] | None = None,
+                 log: bool = True,
+                 force_reload: bool = False) -> None:
+        
+        # set up raw directory
+        self.root = root
+        self._raw_file_names = [fname for fname in os.listdir(self.raw_dir)]
+        if not force_reload and os.listdir(self.processed_dir):
+            self._processed = True
+        else: self._processed = False 
+        self._normalized = False 
+        self.normalize = normalize
 
+        if normalize:
+            self._compute_norm()
+
+        self.task = task
+        self.train = train
+        super().__init__(root, transform, pre_transform, pre_filter, log, force_reload)
+
+    @property
+    def raw_dir(self) -> str:
+        if osp.isdir(osp.join(self.root, 'raw')):
+            return osp.join(self.root, 'raw')
+        else:
+            raise FileNotFoundError(f"Directory '{osp.join(self.root, 'raw')}' does not exist")
+        
+    @property
+    def raw_file_names(self) -> Union[str, List[str], Tuple[str, ...]]:
+        return self._raw_file_names
+    
+    @property
+    def processed_dir(self) -> str:
+        os.makedirs(osp.join(self.root, 'processed'), exist_ok=True)
+        return osp.join(self.root, 'processed')
+    
+    def process(self) -> None:
+        '''
+        Read raw data, construct graphs, add tangents and edge lengths as edge features 
+        and curvature as vertex features. Save all processed data.
+        '''
+        if self._processed:
+            return
+        idx = 0
+        raw_data, _ = af.dataset.load(self.raw_dir, task=self.task, train= self.train)
+        for airfoil in tqdm(raw_data):
+            # extract skin data
+            ordered_data = self._order_points(self._extract_skin(airfoil))
+
+            # Read data from `raw_path`.
+            data = self._generate_sample(ordered_data)
+
+            if self.pre_filter is not None and not self.pre_filter(data):
+                continue
+
+            if self.pre_transform is not None:
+                data = self.pre_transform(data)
+
+            torch.save(data, osp.join(self.processed_dir, f'data_{idx}.pt'))
+            idx += 1
+        self._processed = True
+
+    @property
+    def processed_file_names(self) -> Union[str, List[str], Tuple[str, ...]]:
+        skip_names = ['pre_filter.pt', 'pre_transform.pt']
+        if self._processed:
+            return [fname for fname in os.listdir(self.processed_dir) 
+                    if fname not in skip_names]
+        else:
+            return []
+
+    def _generate_sample(self, skin_data) -> GeometricData:
+
+        # 2D coords of the vertices
+        pos = torch.tensor(skin_data[:,0:2], dtype=torch.float32)
+
+        # edges indexes, edge with (index_1, index_2) connects vertices index_1 and index_2
+        edge_index_forward = torch.tensor([[i, (i+1) % len(pos)] for i in range(len(pos))], dtype=torch.long).T
+        edge_index_backwards = torch.tensor([[(i+1)% len(pos), i ] for i in range(len(pos))], dtype=torch.long).T
+        edge_index = torch.cat([edge_index_forward, edge_index_backwards],dim=1)
+       
+        # pressure is the node level objective
+        y = torch.tensor(skin_data[:,9], dtype=torch.float32)    
+
+        graph = GeometricData(x=pos, pos=pos, edge_index=edge_index, y=y)
+        
+        # add tangent vectors and length to edges
+        graph = TangentVec()(graph)  
+        graph = Distance()(graph)
+
+        # add curvature to nodes' features
+        graph.x = torch.cat([graph.x, graph.curvature.unsqueeze(1)], dim=1)
+        
+        return graph
+    
+    def len(self):
+        return len(self.processed_file_names)
+    
+    def get(self, idx:int)-> GeometricData:
+        data = torch.load(self.processed_paths[idx])
+        return data 
+    
+    def _compute_norm(self):
+        # TODO: implement normalization using Cp (sample wise) and dataset normalization (standardization)
+        pass
+
+    def _extract_skin(self, data):
+        # extract airfoil skin
+        skin_idx = np.nonzero(data[:,4]==0)
+        return data[skin_idx]
+
+    def _order_points(self, skin_data):
+        '''
+        Orders 2D airfoil points counter-clockwise, starting from the trailing edge.
+
+        Identifies the trailing edge as the point with the largest x-coordinate, then orders 
+        all points counter-clockwise based on their angles relative to the airfoil's centroid.
+        '''
+
+        trailing_edge_idx = np.argmax(skin_data[:, 0])
+
+        centroid = np.mean(skin_data, axis=0)[0:2]
+
+        angles = np.arctan2(skin_data[:, 1] - centroid[1], skin_data[:, 0] - centroid[0])
+
+        sorted_indices = np.argsort(angles)
+        sorted_skin_data = skin_data[sorted_indices]
+
+        trailing_edge_sorted_idx = np.where(sorted_indices == trailing_edge_idx)[0][0]
+        ordered_skin_data = np.roll(sorted_skin_data, -trailing_edge_sorted_idx, axis=0)
+
+        return ordered_skin_data
 
 class TangentVec(BaseTransform):
     def __init__(self, norm: bool = True, cat: bool = True) -> None:
@@ -325,8 +467,10 @@ if __name__ == '__main__':
     N = 100
     pre_transform = FourierEpicycles(n=N)
 
-    root = '/home/daep/e.foglia/Documents/1A/05_uncertainty_quantification/data/airfoils/train_shapes'
-    dataset = XFoilDataset(root, pre_transform=pre_transform)
+    # root = '/home/daep/e.foglia/Documents/1A/05_uncertainty_quantification/data/airfoils/train_shapes'
+    # dataset = XFoilDataset(root, pre_transform=pre_transform)
+    root = '/home/daep/e.foglia/Documents/1A/05_uncertainty_quantification/data/AirfRANS'
+    dataset = AirfRANSDataset('scarce', True, root, normalize=False, pre_transform=pre_transform)
     index = 0
     for point in dataset:
         print(f'Checking point {index} ...')
@@ -336,10 +480,10 @@ if __name__ == '__main__':
             print(f'Check more closely point {index}')
         index += 1
 
-    print(dataset.processed_paths[0])
-    graph = dataset._generate_sample(dataset.raw_paths[0])
-    print(graph)
-    graph = dataset[410]
+    # print(dataset.processed_paths[0])
+    # graph = dataset._generate_sample(dataset.raw_paths[0])
+    # print(graph)
+    graph = dataset[5]
     print(graph)
     print('x',torch.isfinite(graph.x).all())
     print('pos',torch.isfinite(graph.pos).all())
@@ -347,8 +491,9 @@ if __name__ == '__main__':
 
     def plot_graph_curvature(graph):
         fig, ax = plt.subplots(layout='constrained')
+        lim = torch.max(graph.curvature[graph.curvature != torch.max(graph.curvature)])
         sc = ax.scatter(graph.pos[:,0], graph.pos[:,1], c=graph.curvature, cmap='RdYlBu_r',
-                        vmax=0.1, edgecolors='k', zorder=2.5)
+                        vmax=lim, edgecolors=None, zorder=2.5)
         num_edges = graph.edge_index.shape[1]
         for i in range(num_edges):
             start_idx = graph.edge_index[0, i].item()
@@ -373,7 +518,7 @@ if __name__ == '__main__':
     def plot_graph_eigenshapes(graph,n):
         eigx = graph.x[:,3+n]
         fig, ax = plt.subplots(layout='constrained')
-        scx = ax.scatter(graph.pos[:,0], graph.pos[:,1], c=eigx, cmap='RdYlBu_r', edgecolors='k', zorder=2.5)
+        scx = ax.scatter(graph.pos[:,0], graph.pos[:,1], c=eigx, cmap='RdYlBu_r', edgecolors=None, zorder=2.5)
 
         num_edges = graph.edge_index.shape[1]
         for i in range(num_edges):
@@ -405,7 +550,7 @@ if __name__ == '__main__':
     plot_graph_curvature(graph)
     # plt.show()
 
-    # plot_graph_fourier(graph)
+    plot_graph_fourier(graph)
     # plt.show()
 
     plot_graph_eigenshapes(graph, 0)

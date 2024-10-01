@@ -419,7 +419,7 @@ class FourierEpicycles(BaseTransform):
         z = torch.complex(x,y)
 
         # compute FFT
-        Z = torch.fft.fft(z)
+        Z = torch.fft.fft(z) # points are not equispaced # TODO: implement NFFT (non-equispaced FFT)
         # retain only amplitude (real part)
         ampl = torch.sqrt(Z.real[:self.n]**2 + Z.imag[:self.n]**2)
         phase = torch.atan2(Z.imag[:self.n],Z.real[:self.n])

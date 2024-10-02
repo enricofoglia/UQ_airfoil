@@ -306,12 +306,12 @@ class AirfRANSDataset(Dataset):
     def _generate_sample(self, skin_data) -> GeometricData:
 
         # 2D coords of the vertices
-        pos = torch.tensor(skin_data[:,0:2], dtype=torch.float32)
+        pos = self._make_periodic(torch.tensor(skin_data[:,0:2], dtype=torch.float32))
 
         edge_index = self._construct_edges(pos)
        
         # pressure is the node level objective
-        y = torch.tensor(skin_data[:,9], dtype=torch.float32)    
+        y = self._make_periodic(torch.tensor(skin_data[:,9], dtype=torch.float32))    
 
         graph = GeometricData(x=pos, pos=pos, edge_index=edge_index, y=y)
         
@@ -368,6 +368,12 @@ class AirfRANSDataset(Dataset):
         ordered_skin_data = np.roll(sorted_skin_data, -trailing_edge_sorted_idx, axis=0)
 
         return ordered_skin_data
+    
+    def _make_periodic(self, x):
+        try:
+            return torch.concatenate((x, x[0].unsqueeze(0)))
+        except RuntimeError:
+            return torch.concatenate((x, x[0]))
 
 class TangentVec(BaseTransform):
     def __init__(self, norm: bool = True, cat: bool = True) -> None:
@@ -405,6 +411,9 @@ class FourierEpicycles(BaseTransform):
     of a complex variable. Save the first :obj:`n` modes as node features
     (only the real part is sufficient). If :obj:`cat=False`, overwrite the
     node features already present. 
+
+    .. warning:: The FFT assumes that the input data is equispaced. If this
+    is not the case, use in combination with :obj:`UniformSampling`.
     '''
     def __init__(self, n:int, cat:Optional[bool]=True) -> None:
         
@@ -453,6 +462,8 @@ class FourierEpicycles(BaseTransform):
     
 
 class UniformSampling(BaseTransform):
+    r'''Resamples a curve uniformly into :obj:`n` points.
+    '''
     def __init__(self, n) -> None:
         super().__init__()
         self.n = n
@@ -464,8 +475,8 @@ class UniformSampling(BaseTransform):
         x,y = data.pos.T 
 
         # make data periodic
-        x = self._make_periodic(x)
-        y = self._make_periodic(y)
+        x = x
+        y = y
         # Compute cumulative chord lengths for parameterization
         dx = torch.diff(x)
         dy = torch.diff(y)
@@ -486,22 +497,15 @@ class UniformSampling(BaseTransform):
         # Interpolate remaining data
         feat_spline_list = []
         for feature in data.x.T:
-            feat_spline_list.append(CubicSpline(t_param, self._make_periodic(feature))) # TODO: check periodicity
+            feat_spline_list.append(CubicSpline(t_param, feature, bc_type='periodic')) # TODO: check periodicity
 
-        out_spline = CubicSpline(t_param, self._make_periodic(data.y))
+        out_spline = CubicSpline(t_param, data.y, bc_type='periodic')
 
         # rebuild the graph
-        
         data = self._build_graph(t_uniform[:-1], x_spline, y_spline, 
                      feat_spline_list, out_spline, dtype=data.x.dtype)
         
         return data
-    
-    def _make_periodic(self, x):
-        try:
-            return torch.concatenate((x, x[0].unsqueeze(0)))
-        except RuntimeError:
-            return torch.concatenate((x, x[0]))
     
     
     def _construct_edges(self, pos):

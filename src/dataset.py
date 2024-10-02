@@ -24,6 +24,7 @@ from torch_geometric.data import Dataset, Data
 from torch_geometric.transforms import Distance, BaseTransform
 
 import numpy as np
+from scipy.interpolate import CubicSpline
 
 import airfrans as af
 
@@ -307,10 +308,7 @@ class AirfRANSDataset(Dataset):
         # 2D coords of the vertices
         pos = torch.tensor(skin_data[:,0:2], dtype=torch.float32)
 
-        # edges indexes, edge with (index_1, index_2) connects vertices index_1 and index_2
-        edge_index_forward = torch.tensor([[i, (i+1) % len(pos)] for i in range(len(pos))], dtype=torch.long).T
-        edge_index_backwards = torch.tensor([[(i+1)% len(pos), i ] for i in range(len(pos))], dtype=torch.long).T
-        edge_index = torch.cat([edge_index_forward, edge_index_backwards],dim=1)
+        edge_index = self._construct_edges(pos)
        
         # pressure is the node level objective
         y = torch.tensor(skin_data[:,9], dtype=torch.float32)    
@@ -325,6 +323,13 @@ class AirfRANSDataset(Dataset):
         graph.x = torch.cat([graph.x, graph.curvature.unsqueeze(1)], dim=1)
         
         return graph
+    
+    def _construct_edges(self, pos):
+        """Construct edge connectivity of an ordered point cloud."""
+        edge_index_forward = torch.tensor([[i, (i+1) % len(pos)] for i in range(len(pos))], dtype=torch.long).T
+        edge_index_backwards = torch.tensor([[(i+1)% len(pos), i ] for i in range(len(pos))], dtype=torch.long).T
+        edge_index = torch.cat([edge_index_forward, edge_index_backwards],dim=1)
+        return edge_index
     
     def len(self):
         return len(self.processed_file_names)
@@ -419,7 +424,7 @@ class FourierEpicycles(BaseTransform):
         z = torch.complex(x,y)
 
         # compute FFT
-        Z = torch.fft.fft(z) # points are not equispaced # TODO: implement NFFT (non-equispaced FFT)
+        Z = torch.fft.fft(z) # make the hypothesis that points are equispaced
         # retain only amplitude (real part)
         ampl = torch.sqrt(Z.real[:self.n]**2 + Z.imag[:self.n]**2)
         phase = torch.atan2(Z.imag[:self.n],Z.real[:self.n])
@@ -445,10 +450,97 @@ class FourierEpicycles(BaseTransform):
     
     def __repr__(self) -> str:
         return f'{self.__class__.__name__}(n={self.n})'
+    
+
+class UniformSampling(BaseTransform):
+    def __init__(self, n) -> None:
+        super().__init__()
+        self.n = n
+
+    def forward(self, data: Data) -> Data:
+        """Interpolate the curve uniformly."""
+        assert data.pos is not None 
+
+        x,y = data.pos.T 
+
+        # make data periodic
+        x = self._make_periodic(x)
+        y = self._make_periodic(y)
+        # Compute cumulative chord lengths for parameterization
+        dx = torch.diff(x)
+        dy = torch.diff(y)
+        chord_lengths = torch.sqrt(dx**2 + dy**2)
+        cum_chord = torch.concatenate((torch.tensor([0]), torch.cumsum(chord_lengths, dim=0)))
+        
+        # Normalize to [0, 1]
+        t_param = cum_chord / cum_chord[-1]
+        # print(t_param)
+        
+        # Create uniform sampling
+        t_uniform = torch.linspace(0, 1, self.n+1)
+        
+        # Interpolate x and y separately
+        x_spline = CubicSpline(t_param, x, bc_type='periodic')
+        y_spline = CubicSpline(t_param, y, bc_type='periodic')
+
+        # Interpolate remaining data
+        feat_spline_list = []
+        for feature in data.x.T:
+            feat_spline_list.append(CubicSpline(t_param, self._make_periodic(feature))) # TODO: check periodicity
+
+        out_spline = CubicSpline(t_param, self._make_periodic(data.y))
+
+        # rebuild the graph
+        
+        data = self._build_graph(t_uniform[:-1], x_spline, y_spline, 
+                     feat_spline_list, out_spline, dtype=data.x.dtype)
+        
+        return data
+    
+    def _make_periodic(self, x):
+        try:
+            return torch.concatenate((x, x[0].unsqueeze(0)))
+        except RuntimeError:
+            return torch.concatenate((x, x[0]))
+    
+    
+    def _construct_edges(self, pos):
+        """Construct edge connectivity of an ordered point cloud."""
+        edge_index_forward = torch.tensor([[i, (i+1) % len(pos)] for i in range(len(pos))], dtype=torch.long).T
+        edge_index_backwards = torch.tensor([[(i+1)% len(pos), i ] for i in range(len(pos))], dtype=torch.long).T
+        edge_index = torch.cat([edge_index_forward, edge_index_backwards],dim=1)
+        return edge_index
+    
+    def _build_graph(self, t_sample, x_spline, y_spline, 
+                     feat_spline_list, out_spline, dtype):
+        '''Construct new graph for resampled shape'''
+        
+        # sample splines
+        x      = torch.tensor(x_spline(t_sample), dtype=dtype)
+        y      = torch.tensor(y_spline(t_sample), dtype=dtype)
+        output = torch.tensor(out_spline(t_sample), dtype=dtype)
+        features = torch.zeros(len(t_sample), len(feat_spline_list), dtype=dtype)
+        for col, spline in enumerate(feat_spline_list):
+            features[:,col] = torch.tensor(spline(t_sample), dtype=dtype)
+
+        # make all periodic
+       
+        # concatenate the coordinates
+        pos = torch.stack((x, y), dim=1)
+
+        # build edge connectivity
+        edge_index = self._construct_edges(pos)
+
+        return GeometricData(x=features, pos=pos, edge_index=edge_index, y=output)
+    
+    def __repr__(self) -> str:
+        return f'{self.__class__.__name__}(n={self.n})'
 
                 
 if __name__ == '__main__':
     import matplotlib.pyplot as plt
+
+    from torchvision import transforms
 
     # =================================================
     # Matplotlib settings
@@ -464,13 +556,18 @@ if __name__ == '__main__':
         'ytick.labelsize' : 14
     })
     # =================================================
-    N = 100
-    pre_transform = FourierEpicycles(n=N)
+    N = 25
+    n_points = 250
+    pre_transform = transforms.Compose(( UniformSampling(n=n_points), FourierEpicycles(n=N),
+                                        TangentVec(), Distance()))
+
+    # pre_transform = FourierEpicycles(n=N)
+
 
     # root = '/home/daep/e.foglia/Documents/1A/05_uncertainty_quantification/data/airfoils/train_shapes'
-    # dataset = XFoilDataset(root, pre_transform=pre_transform)
+    # dataset = XFoilDataset(root, pre_transform=pre_transform, force_reload=True)
     root = '/home/daep/e.foglia/Documents/1A/05_uncertainty_quantification/data/AirfRANS'
-    dataset = AirfRANSDataset('scarce', True, root, normalize=False, pre_transform=pre_transform)
+    dataset = AirfRANSDataset('scarce', True, root, normalize=False, pre_transform=pre_transform, force_reload=True)
     index = 0
     for point in dataset:
         print(f'Checking point {index} ...')
@@ -488,6 +585,13 @@ if __name__ == '__main__':
     print('x',torch.isfinite(graph.x).all())
     print('pos',torch.isfinite(graph.pos).all())
     print('edge_attr',torch.isfinite(graph.edge_attr).all())
+    print('y',torch.isfinite(graph.y).all())
+
+    # for edge, (feat, index )in enumerate(zip(graph.edge_attr,graph.edge_index.T)):
+    #     print(f'Edge {edge}')
+    #     print(f'Connectivity {index}')
+    #     print(f'Feature {feat}')
+
 
     def plot_graph_curvature(graph):
         fig, ax = plt.subplots(layout='constrained')
@@ -538,7 +642,9 @@ if __name__ == '__main__':
     def plot_graph_subsample(graph, skip=3):
         fig, ax = plt.subplots(layout='constrained')
         v_us = graph.pos[::skip,:]
+        last_edge = torch.stack((v_us[-1],v_us[0]),dim=0)
         ax.plot(v_us[:,0],v_us[:,1], 'ko-', mfc='w', ms=10)
+        ax.plot(last_edge[:,0],last_edge[:,1], 'ko-', mfc='w', ms=10)
         ax.set_xlabel(r'$x/c$ [-]')
         ax.set_ylabel(r'$y/c$ [-]')
         ax.axis('equal')

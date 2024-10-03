@@ -33,7 +33,7 @@ from torch_geometric.loader import DataLoader
 
 from tqdm import tqdm
 
-
+ 
 class Trainer():
     r'''Class for training single neural networks.
 

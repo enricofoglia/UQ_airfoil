@@ -236,7 +236,7 @@ class AirfRANSDataset(Dataset):
         task (str): task to determine which version of the dataset to load
         train (bool, optional): wether to load the train or test split (default :obj:`True`)
         root (str, optional): root directoty (default :obj:`None`)
-        normalize (bool, optional): if :obj:`True`, standardize global outputs (default :obj:`False`) and normalize pressure using :math:`1/2u^` sample-wise.
+        normalize (bool, optional): if :obj:`True`, standardize global outputs (default :obj:`False`) and normalize pressure using :math:`1/2u^2` sample-wise.
         transform (Callable, optional): function to call when retrieving a
             sample (default :obj:`None`)
         pre_transform (Callable, optional): function to call when initializing
@@ -437,6 +437,8 @@ class AirfRANSDataset(Dataset):
             return torch.concatenate((x, x[0]))
 
 class TangentVec(BaseTransform):
+    r''' Add tangent vectors as edge features. If :obj:`norm=True`, normalize all lengths to 1.
+    '''
     def __init__(self, norm: bool = True, cat: bool = True) -> None:
         super().__init__()
         self.norm = norm
@@ -473,8 +475,7 @@ class FourierEpicycles(BaseTransform):
     (only the real part is sufficient). If :obj:`cat=False`, overwrite the
     node features already present. 
 
-    .. warning:: The FFT assumes that the input data is equispaced. If this
-    is not the case, use in combination with :obj:`UniformSampling`.
+    .. warning:: The FFT assumes that the input data is equispaced. If this is not the case, use in combination with :obj:`UniformSampling`.
     '''
     def __init__(self, n:int, cat:Optional[bool]=True) -> None:
         

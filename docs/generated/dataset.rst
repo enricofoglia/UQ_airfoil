@@ -8,8 +8,10 @@
 
    .. autosummary::
    
+      AirfRANSDataset
       FourierEpicycles
       GeometricData
       TangentVec
+      UniformSampling
       XFoilDataset
    

@@ -251,6 +251,88 @@
 <span id="dataset-module"></span><h1>dataset module<a class="headerlink" href="#module-dataset" title="Link to this heading">¶</a></h1>
 <p>This module includes all functions and classes to take care of the data preprocessing. The main class to be used is <a class="reference internal" href="generated/dataset.html#dataset.XFoilDataset" title="dataset.XFoilDataset"><code class="xref py py-class docutils literal notranslate"><span class="pre">XFoilDataset</span></code></a>, which takes care of everything.</p>
 <dl class="py class">
+<dt class="sig sig-object py" id="dataset.AirfRANSDataset">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">dataset.</span></span><span class="sig-name descname"><span class="pre">AirfRANSDataset</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">task</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">train</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">root</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">normalize</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">transform</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Callable</span><span class="p"><span class="pre">[</span></span><span class="p"><span class="pre">[</span></span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pre_transform</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Callable</span><span class="p"><span class="pre">[</span></span><span class="p"><span class="pre">[</span></span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pre_filter</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Callable</span><span class="p"><span class="pre">[</span></span><span class="p"><span class="pre">[</span></span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">log</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">force_reload</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#dataset.AirfRANSDataset" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">Dataset</span></code></p>
+<p>Handling of the AirfRANS dataset (<a class="reference external" href="https://github.com/Extrality/AirfRANS.git">https://github.com/Extrality/AirfRANS.git</a>).
+Of the 2D flow field only the pressure on the surface is retained. The points of
+the skin are extracted, ordered and connected into a graph. Because of the
+extreme inhomogeneity of the RANS mesh (e.g. refinement at the leading edge),
+it is advisable to use this dataset in conjuction with the UniformSampling
+transformation.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>task</strong> (<em>str</em>) – task to determine which version of the dataset to load</p></li>
+<li><p><strong>train</strong> (<em>bool</em><em>, </em><em>optional</em>) – wether to load the train or test split (default <code class="xref py py-obj docutils literal notranslate"><span class="pre">True</span></code>)</p></li>
+<li><p><strong>root</strong> (<em>str</em><em>, </em><em>optional</em>) – root directoty (default <code class="xref py py-obj docutils literal notranslate"><span class="pre">None</span></code>)</p></li>
+<li><p><strong>normalize</strong> (<em>bool</em><em>, </em><em>optional</em>) – if <code class="xref py py-obj docutils literal notranslate"><span class="pre">True</span></code>, standardize global outputs (default <code class="xref py py-obj docutils literal notranslate"><span class="pre">False</span></code>) and normalize pressure using <span class="math notranslate nohighlight">\(1/2u^2\)</span> sample-wise.</p></li>
+<li><p><strong>transform</strong> (<em>Callable</em><em>, </em><em>optional</em>) – function to call when retrieving a
+sample (default <code class="xref py py-obj docutils literal notranslate"><span class="pre">None</span></code>)</p></li>
+<li><p><strong>pre_transform</strong> (<em>Callable</em><em>, </em><em>optional</em>) – function to call when initializing
+the class (default <code class="xref py py-obj docutils literal notranslate"><span class="pre">None</span></code>)</p></li>
+<li><p><strong>pre_filter</strong> (<em>Callable</em>) – how to discard samples at initialization (default <code class="xref py py-obj docutils literal notranslate"><span class="pre">None</span></code>)</p></li>
+<li><p><strong>log</strong> (<em>bool</em><em>, </em><em>optional</em>) – whether to print to console while performing actions (default <code class="xref py py-obj docutils literal notranslate"><span class="pre">True</span></code>)</p></li>
+<li><p><strong>force_reload</strong> (<em>bool</em><em>, </em><em>optional</em>) – whether to re-process the dataset. (default <code class="xref py py-obj docutils literal notranslate"><span class="pre">False</span></code>)</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="dataset.AirfRANSDataset.get">
+<span class="sig-name descname"><span class="pre">get</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">idx</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="generated/dataset.html#dataset.GeometricData" title="dataset.GeometricData"><span class="pre">GeometricData</span></a></span></span><a class="headerlink" href="#dataset.AirfRANSDataset.get" title="Link to this definition">¶</a></dt>
+<dd><p>Gets the data object at index <code class="xref py py-obj docutils literal notranslate"><span class="pre">idx</span></code>.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="dataset.AirfRANSDataset.glob_mean">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">glob_mean</span></span><a class="headerlink" href="#dataset.AirfRANSDataset.glob_mean" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="dataset.AirfRANSDataset.glob_std">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">glob_std</span></span><a class="headerlink" href="#dataset.AirfRANSDataset.glob_std" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="dataset.AirfRANSDataset.len">
+<span class="sig-name descname"><span class="pre">len</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#dataset.AirfRANSDataset.len" title="Link to this definition">¶</a></dt>
+<dd><p>Returns the number of data objects stored in the dataset.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="dataset.AirfRANSDataset.process">
+<span class="sig-name descname"><span class="pre">process</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#dataset.AirfRANSDataset.process" title="Link to this definition">¶</a></dt>
+<dd><p>Read raw data, construct graphs, add tangents and edge lengths as edge features
+and curvature as vertex features. Save all processed data.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="dataset.AirfRANSDataset.processed_dir">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">processed_dir</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><a class="headerlink" href="#dataset.AirfRANSDataset.processed_dir" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="dataset.AirfRANSDataset.processed_file_names">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">processed_file_names</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#dataset.AirfRANSDataset.processed_file_names" title="Link to this definition">¶</a></dt>
+<dd><p>The name of the files in the <code class="xref py py-obj docutils literal notranslate"><span class="pre">self.processed_dir</span></code> folder that
+must be present in order to skip processing.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="dataset.AirfRANSDataset.raw_dir">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">raw_dir</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><a class="headerlink" href="#dataset.AirfRANSDataset.raw_dir" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="dataset.AirfRANSDataset.raw_file_names">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">raw_file_names</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#dataset.AirfRANSDataset.raw_file_names" title="Link to this definition">¶</a></dt>
+<dd><p>The name of the files in the <code class="xref py py-obj docutils literal notranslate"><span class="pre">self.raw_dir</span></code> folder that must
+be present in order to skip downloading.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
 <dt class="sig sig-object py" id="dataset.FourierEpicycles">
 <em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">dataset.</span></span><span class="sig-name descname"><span class="pre">FourierEpicycles</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">n</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cat</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#dataset.FourierEpicycles" title="Link to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">BaseTransform</span></code></p>
@@ -258,6 +340,11 @@
 of a complex variable. Save the first <code class="xref py py-obj docutils literal notranslate"><span class="pre">n</span></code> modes as node features
 (only the real part is sufficient). If <code class="xref py py-obj docutils literal notranslate"><span class="pre">cat=False</span></code>, overwrite the
 node features already present.</p>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>The FFT assumes that the input data is equispaced. If this</p>
+</div>
+<p>is not the case, use in combination with <a class="reference internal" href="generated/dataset.html#dataset.UniformSampling" title="dataset.UniformSampling"><code class="xref py py-obj docutils literal notranslate"><span class="pre">UniformSampling</span></code></a>.</p>
 <dl class="py method">
 <dt class="sig sig-object py" id="dataset.FourierEpicycles.forward">
 <span class="sig-name descname"><span class="pre">forward</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Data</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Data</span></span></span><a class="headerlink" href="#dataset.FourierEpicycles.forward" title="Link to this definition">¶</a></dt>
@@ -295,6 +382,19 @@ edges. Store it as a scalar vertex feature.</p>
 <dt class="sig sig-object py" id="dataset.TangentVec.forward">
 <span class="sig-name descname"><span class="pre">forward</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Data</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Data</span></span></span><a class="headerlink" href="#dataset.TangentVec.forward" title="Link to this definition">¶</a></dt>
 <dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="dataset.UniformSampling">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">dataset.</span></span><span class="sig-name descname"><span class="pre">UniformSampling</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">n</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#dataset.UniformSampling" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">BaseTransform</span></code></p>
+<p>Resamples a curve uniformly into <code class="xref py py-obj docutils literal notranslate"><span class="pre">n</span></code> points.</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="dataset.UniformSampling.forward">
+<span class="sig-name descname"><span class="pre">forward</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Data</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Data</span></span></span><a class="headerlink" href="#dataset.UniformSampling.forward" title="Link to this definition">¶</a></dt>
+<dd><p>Interpolate the curve uniformly.</p>
+</dd></dl>
 
 </dd></dl>
 
@@ -409,6 +509,18 @@ be present in order to skip downloading.</p>
           <div class="toc-tree">
             <ul>
 <li><a class="reference internal" href="#">dataset module</a><ul>
+<li><a class="reference internal" href="#dataset.AirfRANSDataset"><code class="docutils literal notranslate"><span class="pre">AirfRANSDataset</span></code></a><ul>
+<li><a class="reference internal" href="#dataset.AirfRANSDataset.get"><code class="docutils literal notranslate"><span class="pre">AirfRANSDataset.get()</span></code></a></li>
+<li><a class="reference internal" href="#dataset.AirfRANSDataset.glob_mean"><code class="docutils literal notranslate"><span class="pre">AirfRANSDataset.glob_mean</span></code></a></li>
+<li><a class="reference internal" href="#dataset.AirfRANSDataset.glob_std"><code class="docutils literal notranslate"><span class="pre">AirfRANSDataset.glob_std</span></code></a></li>
+<li><a class="reference internal" href="#dataset.AirfRANSDataset.len"><code class="docutils literal notranslate"><span class="pre">AirfRANSDataset.len()</span></code></a></li>
+<li><a class="reference internal" href="#dataset.AirfRANSDataset.process"><code class="docutils literal notranslate"><span class="pre">AirfRANSDataset.process()</span></code></a></li>
+<li><a class="reference internal" href="#dataset.AirfRANSDataset.processed_dir"><code class="docutils literal notranslate"><span class="pre">AirfRANSDataset.processed_dir</span></code></a></li>
+<li><a class="reference internal" href="#dataset.AirfRANSDataset.processed_file_names"><code class="docutils literal notranslate"><span class="pre">AirfRANSDataset.processed_file_names</span></code></a></li>
+<li><a class="reference internal" href="#dataset.AirfRANSDataset.raw_dir"><code class="docutils literal notranslate"><span class="pre">AirfRANSDataset.raw_dir</span></code></a></li>
+<li><a class="reference internal" href="#dataset.AirfRANSDataset.raw_file_names"><code class="docutils literal notranslate"><span class="pre">AirfRANSDataset.raw_file_names</span></code></a></li>
+</ul>
+</li>
 <li><a class="reference internal" href="#dataset.FourierEpicycles"><code class="docutils literal notranslate"><span class="pre">FourierEpicycles</span></code></a><ul>
 <li><a class="reference internal" href="#dataset.FourierEpicycles.forward"><code class="docutils literal notranslate"><span class="pre">FourierEpicycles.forward()</span></code></a></li>
 </ul>
@@ -420,6 +532,10 @@ be present in order to skip downloading.</p>
 </li>
 <li><a class="reference internal" href="#dataset.TangentVec"><code class="docutils literal notranslate"><span class="pre">TangentVec</span></code></a><ul>
 <li><a class="reference internal" href="#dataset.TangentVec.forward"><code class="docutils literal notranslate"><span class="pre">TangentVec.forward()</span></code></a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#dataset.UniformSampling"><code class="docutils literal notranslate"><span class="pre">UniformSampling</span></code></a><ul>
+<li><a class="reference internal" href="#dataset.UniformSampling.forward"><code class="docutils literal notranslate"><span class="pre">UniformSampling.forward()</span></code></a></li>
 </ul>
 </li>
 <li><a class="reference internal" href="#dataset.XFoilDataset"><code class="docutils literal notranslate"><span class="pre">XFoilDataset</span></code></a><ul>

@@ -116,9 +116,13 @@ class XFoilDataset(Dataset):
         # set up raw directory
         self.root = root
         self._raw_file_names = [fname for fname in os.listdir(self.raw_dir)]
-        self._processed = False 
+        
         self._normalized = False 
         self.normalize = normalize
+        if not force_reload and os.listdir(self.processed_dir):
+            self._processed = True
+        else: 
+            self._processed = False 
 
         if normalize:
             self._compute_norm()
@@ -193,10 +197,6 @@ class XFoilDataset(Dataset):
         y = torch.tensor(sample['Cp'], dtype=torch.float32)    
 
         graph = GeometricData(x=pos, pos=pos, edge_index=edge_index, y=y, y_glob=y_glob)
-        
-        # add tangent vectors and length to edges
-        graph = TangentVec()(graph)  
-        graph = Distance()(graph)
 
         # add curvature to nodes' features
         graph.x = torch.cat([graph.x, graph.curvature.unsqueeze(1)], dim=1)
@@ -225,6 +225,26 @@ class XFoilDataset(Dataset):
         self.std = torch.std(torch.tensor(y_list))
 
 class AirfRANSDataset(Dataset):
+    r'''Handling of the AirfRANS dataset (https://github.com/Extrality/AirfRANS.git). 
+    Of the 2D flow field only the pressure on the surface is retained. The points of
+    the skin are extracted, ordered and connected into a graph. Because of the 
+    extreme inhomogeneity of the RANS mesh (e.g. refinement at the leading edge),
+    it is advisable to use this dataset in conjuction with the UniformSampling 
+    transformation.
+
+    Args: 
+        task (str): task to determine which version of the dataset to load
+        train (bool, optional): wether to load the train or test split (default :obj:`True`)
+        root (str, optional): root directoty (default :obj:`None`)
+        normalize (bool, optional): if :obj:`True`, standardize global outputs (default :obj:`False`) and normalize pressure using :math:`1/2u^` sample-wise.
+        transform (Callable, optional): function to call when retrieving a
+            sample (default :obj:`None`)
+        pre_transform (Callable, optional): function to call when initializing
+            the class (default :obj:`None`)    
+        pre_filter (Callable): how to discard samples at initialization (default :obj:`None`)
+        log (bool, optional): whether to print to console while performing actions (default :obj:`True`)
+        force_reload (bool, optional): whether to re-process the dataset. (default :obj:`False`)
+    '''
     def __init__(self,
                  task: str,
                  train: bool | None = True,
@@ -238,15 +258,17 @@ class AirfRANSDataset(Dataset):
         
         # set up raw directory
         self.root = root
-        self._raw_file_names = [fname for fname in os.listdir(self.raw_dir)]
+        self._skip_names = ['manifest.json']
+        self._raw_file_names = [fname for fname in os.listdir(self.raw_dir) 
+                                if fname not in self._skip_names]
         if not force_reload and os.listdir(self.processed_dir):
             self._processed = True
         else: self._processed = False 
-        self._normalized = False 
-        self.normalize = normalize
 
-        if normalize:
-            self._compute_norm()
+        self._normalized = not normalize 
+        self.normalize = normalize
+        self._glob_mean = (0.0, 0.0)
+        self._glob_std = (1.0,1.0)
 
         self.task = task
         self.train = train
@@ -268,6 +290,37 @@ class AirfRANSDataset(Dataset):
         os.makedirs(osp.join(self.root, 'processed'), exist_ok=True)
         return osp.join(self.root, 'processed')
     
+    @property
+    def glob_mean(self):
+        if self._normalized:
+            return self._glob_mean
+        
+        u_mean, alpha_mean = 0.0, 0.0
+        for name in self._raw_file_names:
+            u, a = self._process_name(name) 
+            u_mean += u
+            alpha_mean += a 
+        self._glob_mean = (u_mean / len(self._raw_file_names), 
+                           alpha_mean / len(self._raw_file_names))
+        self._normalized = True
+        return self._glob_mean
+    
+    @property
+    def glob_std(self):
+        if self._normalized:
+            return self._glob_std
+        
+        u_mean, alpha_mean = self.glob_mean
+        u_var, alpha_var = 0.0, 0.0
+        for name in self._raw_file_names:
+            u, a = self._process_name(name) 
+            u_var += (u - u_mean)**2
+            alpha_var += (a - alpha_mean)**2 
+        self._glob_std =  (np.sqrt(u_var / len(self._raw_file_names)), 
+                np.sqrt(alpha_var / len(self._raw_file_names)))
+        self._normalized = True
+        return self._glob_std
+
     def process(self) -> None:
         '''
         Read raw data, construct graphs, add tangents and edge lengths as edge features 
@@ -276,13 +329,21 @@ class AirfRANSDataset(Dataset):
         if self._processed:
             return
         idx = 0
-        raw_data, _ = af.dataset.load(self.raw_dir, task=self.task, train= self.train)
-        for airfoil in tqdm(raw_data):
+        raw_data, names = af.dataset.load(self.raw_dir, task=self.task, train= self.train)
+        for airfoil, name in tqdm(zip(raw_data, names), total=len(names)):
+            # get global params
+            u, alpha = self._process_name(name)
+            if self.normalize:
+                dyn_pressure = 0.5*u**2 # the pressure is already given divided by rho, chord = 1
+                u = (u-self.glob_mean[0]) / self.glob_std[0]
+                alpha = (alpha-self.glob_mean[1]) / self.glob_std[1]
+            else: dyn_pressure = 1.0
+
             # extract skin data
             ordered_data = self._order_points(self._extract_skin(airfoil))
 
             # Read data from `raw_path`.
-            data = self._generate_sample(ordered_data)
+            data = self._generate_sample(ordered_data, dyn_pressure, u, alpha)
 
             if self.pre_filter is not None and not self.pre_filter(data):
                 continue
@@ -296,14 +357,20 @@ class AirfRANSDataset(Dataset):
 
     @property
     def processed_file_names(self) -> Union[str, List[str], Tuple[str, ...]]:
-        skip_names = ['pre_filter.pt', 'pre_transform.pt']
+        skip_names = ['pre_filter.pt', 'pre_transform.pt', 'manifest.json']
         if self._processed:
             return [fname for fname in os.listdir(self.processed_dir) 
                     if fname not in skip_names]
         else:
             return []
+        
+    def _process_name(self, string):
+        '''Read name and return tuple (U, alpha) with velocity U in m/s and 
+        angle of attack alpha in degrees'''
+        splitted = string.split('_')
+        return float(splitted[2]), float(splitted[3]) 
 
-    def _generate_sample(self, skin_data) -> GeometricData:
+    def _generate_sample(self, skin_data, dyn_pressure, u, alpha) -> GeometricData:
 
         # 2D coords of the vertices
         pos = self._make_periodic(torch.tensor(skin_data[:,0:2], dtype=torch.float32))
@@ -311,15 +378,13 @@ class AirfRANSDataset(Dataset):
         edge_index = self._construct_edges(pos)
        
         # pressure is the node level objective
-        y = self._make_periodic(torch.tensor(skin_data[:,9], dtype=torch.float32))    
+        y = self._make_periodic(torch.tensor(skin_data[:,9], dtype=torch.float32)) / dyn_pressure 
 
-        graph = GeometricData(x=pos, pos=pos, edge_index=edge_index, y=y)
-        
-        # add tangent vectors and length to edges
-        graph = TangentVec()(graph)  
-        graph = Distance()(graph)
+        x = torch.stack((u*torch.ones_like(y),alpha*torch.ones_like(y),pos[:,0],pos[:,1]), dim=-1)
+        graph = GeometricData(x=x, pos=pos, edge_index=edge_index, y=y)
 
         # add curvature to nodes' features
+        graph = TangentVec()(graph)
         graph.x = torch.cat([graph.x, graph.curvature.unsqueeze(1)], dim=1)
         
         return graph
@@ -337,10 +402,6 @@ class AirfRANSDataset(Dataset):
     def get(self, idx:int)-> GeometricData:
         data = torch.load(self.processed_paths[idx])
         return data 
-    
-    def _compute_norm(self):
-        # TODO: implement normalization using Cp (sample wise) and dataset normalization (standardization)
-        pass
 
     def _extract_skin(self, data):
         # extract airfoil skin
@@ -448,10 +509,8 @@ class FourierEpicycles(BaseTransform):
 
         if pseudo is not None and self.cat:
             pseudo = pseudo.view(-1, 1) if pseudo.dim() == 1 else pseudo
-            # data.x = torch.cat([pseudo, ampl_repl.type_as(pseudo)], dim=-1)
             data.x = torch.cat([pseudo, eigx.type_as(pseudo)], dim=-1)
-            # pseudo = data.x 
-            # data.x = torch.cat([pseudo, eigy.type_as(pseudo)], dim=-1)
+            
         else:
             data.x = eigx 
         
@@ -542,9 +601,14 @@ class UniformSampling(BaseTransform):
 
                 
 if __name__ == '__main__':
+
     import matplotlib.pyplot as plt
 
     from torchvision import transforms
+
+    from cmcrameri import cm
+
+    CMAP = cm.managua_r
 
     # =================================================
     # Matplotlib settings
@@ -571,7 +635,7 @@ if __name__ == '__main__':
     # root = '/home/daep/e.foglia/Documents/1A/05_uncertainty_quantification/data/airfoils/train_shapes'
     # dataset = XFoilDataset(root, pre_transform=pre_transform, force_reload=True)
     root = '/home/daep/e.foglia/Documents/1A/05_uncertainty_quantification/data/AirfRANS'
-    dataset = AirfRANSDataset('scarce', True, root, normalize=False, pre_transform=pre_transform, force_reload=True)
+    dataset = AirfRANSDataset('scarce', True, root, normalize=True, pre_transform=pre_transform, force_reload=False)
     index = 0
     for point in dataset:
         print(f'Checking point {index} ...')
@@ -584,7 +648,7 @@ if __name__ == '__main__':
     # print(dataset.processed_paths[0])
     # graph = dataset._generate_sample(dataset.raw_paths[0])
     # print(graph)
-    graph = dataset[5]
+    graph = dataset[0]
     print(graph)
     print('x',torch.isfinite(graph.x).all())
     print('pos',torch.isfinite(graph.pos).all())
@@ -595,12 +659,37 @@ if __name__ == '__main__':
     #     print(f'Edge {edge}')
     #     print(f'Connectivity {index}')
     #     print(f'Feature {feat}')
+    def plot_graph_pressure(graph, dataset):
+        u = graph.x[0,0]*dataset.glob_std[0]+dataset.glob_mean[0]
+        alpha = graph.x[1,0]*dataset.glob_std[1]+dataset.glob_mean[1]
 
+        p = graph.y
+        if not dataset.normalize:
+            p /= 0.5*u**2
+
+        fig, ax = plt.subplots(figsize=(6,3))
+        sc = ax.scatter(graph.pos[:,0], graph.pos[:,1], c=p, cmap=CMAP,
+                        edgecolors=None, zorder=2.5)
+        num_edges = graph.edge_index.shape[1]
+        for i in range(num_edges):
+            start_idx = graph.edge_index[0, i].item()
+            end_idx = graph.edge_index[1, i].item()
+            start_coords = graph.pos[start_idx]
+            end_coords = graph.pos[end_idx]
+            ax.plot([start_coords[0], end_coords[0]], [start_coords[1], end_coords[1]], c='black', 
+                     alpha=0.6)
+        plt.colorbar(sc, ax=ax, label=r'$C_p$ [-]')
+        ax.set_xlabel(r'$x/c$ [-]')
+        ax.set_ylabel(r'$y/c$ [-]')
+        ax.axis('equal')
+        
+        ax.set_title(r'Pressure coefficient at $U$={0:.1f} m/s and $\alpha$={1:.2f}$^\circ$'.format(
+            u,alpha) )
 
     def plot_graph_curvature(graph):
-        fig, ax = plt.subplots(layout='constrained')
+        fig, ax = plt.subplots(figsize=(6,3),layout='constrained')
         lim = torch.max(graph.curvature[graph.curvature != torch.max(graph.curvature)])
-        sc = ax.scatter(graph.pos[:,0], graph.pos[:,1], c=graph.curvature, cmap='RdYlBu_r',
+        sc = ax.scatter(graph.pos[:,0], graph.pos[:,1], c=graph.curvature, cmap=CMAP,
                         vmax=lim, edgecolors=None, zorder=2.5)
         num_edges = graph.edge_index.shape[1]
         for i in range(num_edges):
@@ -617,16 +706,18 @@ if __name__ == '__main__':
 
     def plot_graph_fourier(graph):
         fig, ax = plt.subplots(layout='constrained')
-        ax.stem(graph.x[0,3:]/max(graph.x[0,3:]))
+        max_amplitude = graph.x[0,5]
+        for freq in range(graph.x.shape[1]-5):
+            ax.stem(freq, max(graph.x[:,freq+5])/max_amplitude)
         ax.set_xlabel(r'index $n$')
         ax.set_ylabel(r'relative amplitude $\vert \hat{z}_i\vert/\vert \hat{z}_{max}\vert$')
         ax.set_title('Fourier transform')
         ax.set_yscale('log')
         
     def plot_graph_eigenshapes(graph,n):
-        eigx = graph.x[:,3+n]
-        fig, ax = plt.subplots(layout='constrained')
-        scx = ax.scatter(graph.pos[:,0], graph.pos[:,1], c=eigx, cmap='RdYlBu_r', edgecolors=None, zorder=2.5)
+        eigx = graph.x[:,5+n]
+        fig, ax = plt.subplots(figsize=(6,3),layout='constrained')
+        scx = ax.scatter(graph.pos[:,0], graph.pos[:,1], c=eigx, cmap=CMAP, edgecolors=None, zorder=2.5)
 
         num_edges = graph.edge_index.shape[1]
         for i in range(num_edges):
@@ -644,7 +735,7 @@ if __name__ == '__main__':
         ax.set_title(r'Eigenshape $\phi_{{n}}(\vartheta)$, $n$={0}'.format(n))
 
     def plot_graph_subsample(graph, skip=3):
-        fig, ax = plt.subplots(layout='constrained')
+        fig, ax = plt.subplots(figsize=(6,3),layout='constrained')
         v_us = graph.pos[::skip,:]
         last_edge = torch.stack((v_us[-1],v_us[0]),dim=0)
         ax.plot(v_us[:,0],v_us[:,1], 'ko-', mfc='w', ms=10)
@@ -662,6 +753,8 @@ if __name__ == '__main__':
 
     plot_graph_fourier(graph)
     # plt.show()
+
+    plot_graph_pressure(graph, dataset)
 
     plot_graph_eigenshapes(graph, 0)
     plot_graph_eigenshapes(graph, 1)

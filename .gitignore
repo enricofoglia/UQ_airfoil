@@ -6,3 +6,6 @@ __pycache__/
 # logs and outputs
 out/
 *.logs
+
+# scratch test files
+scratch*.py

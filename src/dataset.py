@@ -25,6 +25,9 @@ from torch_geometric.transforms import Distance, BaseTransform
 
 import numpy as np
 from scipy.interpolate import CubicSpline
+from scipy.spatial import distance_matrix
+
+import networkx as nx
 
 import airfrans as af
 
@@ -199,6 +202,7 @@ class XFoilDataset(Dataset):
         graph = GeometricData(x=pos, pos=pos, edge_index=edge_index, y=y, y_glob=y_glob)
 
         # add curvature to nodes' features
+        graph = TangentVec()(graph)
         graph.x = torch.cat([graph.x, graph.curvature.unsqueeze(1)], dim=1)
         
         return graph
@@ -408,28 +412,26 @@ class AirfRANSDataset(Dataset):
         skin_idx = np.nonzero(data[:,4]==0)
         return data[skin_idx]
 
-    def _order_points(self, skin_data):
+    def _order_points(self, points):
+        '''Order the points using the Christofides heuristic for the travelling
+        salesperson problem.
         '''
-        Orders 2D airfoil points counter-clockwise, starting from the trailing edge.
+        if points.shape[1] > 2:
+            data = points[:,0:2]
+        else:
+            data = points
 
-        Identifies the trailing edge as the point with the largest x-coordinate, then orders 
-        all points counter-clockwise based on their angles relative to the airfoil's centroid.
-        '''
+        dist_matrix = distance_matrix(data, data, p=2)
 
-        trailing_edge_idx = np.argmax(skin_data[:, 0])
+        G = nx.Graph()
+        for i in range(len(points)):
+            for j in range(len(points)):
+                G.add_edge(i, j, weight=dist_matrix[i,j])
+        ordered_indices = nx.algorithms.approximation.christofides(G)
 
-        centroid = np.mean(skin_data, axis=0)[0:2]
+        ordered_points = points[ordered_indices[:-1]]
+        return ordered_points
 
-        angles = np.arctan2(skin_data[:, 1] - centroid[1], skin_data[:, 0] - centroid[0])
-
-        sorted_indices = np.argsort(angles)
-        sorted_skin_data = skin_data[sorted_indices]
-
-        trailing_edge_sorted_idx = np.where(sorted_indices == trailing_edge_idx)[0][0]
-        ordered_skin_data = np.roll(sorted_skin_data, -trailing_edge_sorted_idx, axis=0)
-
-        return ordered_skin_data
-    
     def _make_periodic(self, x):
         try:
             return torch.concatenate((x, x[0].unsqueeze(0)))
@@ -557,9 +559,15 @@ class UniformSampling(BaseTransform):
         # Interpolate remaining data
         feat_spline_list = []
         for feature in data.x.T:
-            feat_spline_list.append(CubicSpline(t_param, feature, bc_type='periodic')) # TODO: check periodicity
+            try:
+                feat_spline_list.append(CubicSpline(t_param, feature, bc_type='periodic')) # TODO: check periodicity
+            except ValueError:
+                feat_spline_list.append(CubicSpline(t_param, feature, bc_type='not-a-knot'))
 
-        out_spline = CubicSpline(t_param, data.y, bc_type='periodic')
+        try:
+            out_spline = CubicSpline(t_param, data.y, bc_type='periodic')
+        except ValueError:
+            out_spline = CubicSpline(t_param, data.y, bc_type='not-a-knot')
 
         # rebuild the graph
         data = self._build_graph(t_uniform[:-1], x_spline, y_spline, 
@@ -627,7 +635,7 @@ if __name__ == '__main__':
     # =================================================
     N = 25
     n_points = 250
-    pre_transform = transforms.Compose(( UniformSampling(n=n_points), FourierEpicycles(n=N),
+    pre_transform = transforms.Compose(( UniformSampling(n_points), FourierEpicycles(n=N),
                                         TangentVec(), Distance()))
 
     # pre_transform = FourierEpicycles(n=N)
@@ -660,15 +668,17 @@ if __name__ == '__main__':
     #     print(f'Edge {edge}')
     #     print(f'Connectivity {index}')
     #     print(f'Feature {feat}')
-    def plot_graph_pressure(graph, dataset):
+    def plot_graph_pressure(graph, dataset, ax =None):
         u = graph.x[0,0]*dataset.glob_std[0]+dataset.glob_mean[0]
-        alpha = graph.x[1,0]*dataset.glob_std[1]+dataset.glob_mean[1]
+        alpha = graph.x[0,1]*dataset.glob_std[1]+dataset.glob_mean[1]
 
         p = graph.y
         if not dataset.normalize:
             p /= 0.5*u**2
 
-        fig, ax = plt.subplots(figsize=(6,3))
+        # fig, ax = plt.subplots(figsize=(6,3))
+        if ax is None: 
+            _, ax = plt.subplots()
         sc = ax.scatter(graph.pos[:,0], graph.pos[:,1], c=p, cmap=CMAP,
                         edgecolors=None, zorder=2.5)
         num_edges = graph.edge_index.shape[1]
@@ -746,6 +756,17 @@ if __name__ == '__main__':
         ax.axis('equal')
         ax.set_axis_off()
         
+    for ind, graph in tqdm(enumerate(dataset), total=len(dataset)):
+        fig, ax = plt.subplots(2,1, layout='constrained', sharex=True)
+        ax[0].plot(graph.pos[:,0], graph.pos[:,1], 'o-', alpha=0.75)
+        ax[0].set_title('Position')
+        ax[0].set_xlabel(r'$x/c$')
+        ax[0].set_ylabel(r'$y/c$')
+
+        plot_graph_pressure(graph, dataset, ax = ax[1])
+        fig.suptitle(f'index {ind}')
+        plt.savefig(f'../out/sample{ind}.png')
+        plt.close()
 
     plot_graph_subsample(graph, skip=5)
     plt.savefig('../out/figures/airfoil_graph.png', dpi=300, transparent=True)

@@ -6,9 +6,12 @@ from torch.optim.lr_scheduler import ExponentialLR
 from torch_geometric.nn.aggr import SoftmaxAggregation
 from torch_geometric.loader import DataLoader
 
+from torch_geometric.transforms import Distance
+from torchvision import transforms
+
 from sklearn.model_selection import train_test_split
 
-from dataset import XFoilDataset, FourierEpicycles
+from dataset import UniformSampling, FourierEpicycles, TangentVec, AirfRANSDataset, XFoilDataset
 from model import EncodeProcessDecode, ZigZag, Ensemble, MCDropout
 from training import Trainer, EnsembleTrainer
 from utils import set_seed
@@ -18,12 +21,24 @@ set_seed(42)
 
 # debug: track down anomaly
 # torch.autograd.set_detect_anomaly(True)
-n = 20
-pre_transform = FourierEpicycles(n=n, cat=False)
+# n = 20
+# pre_transform = FourierEpicycles(n=n, cat=False)
 
-root = '/home/daep/e.foglia/Documents/1A/05_uncertainty_quantification/data/airfoils/train_shapes'
-dataset = XFoilDataset(root, normalize=True, pre_transform=pre_transform,
-                       force_reload=True)
+# root = '/home/daep/e.foglia/Documents/1A/05_uncertainty_quantification/data/airfoils/train_shapes'
+# dataset = XFoilDataset(root, normalize=True, pre_transform=pre_transform,
+#                        force_reload=True)
+
+N = 25
+n_points = 250
+pre_transform = transforms.Compose((UniformSampling(n=n_points), FourierEpicycles(n=N), TangentVec(), Distance()))
+
+# pre_transform = FourierEpicycles(n=N)
+
+
+# root = '/home/daep/e.foglia/Documents/1A/05_uncertainty_quantification/data/airfoils/train_shapes'
+# dataset = XFoilDataset(root, pre_transform=pre_transform, force_reload=True)
+root = '/home/daep/e.foglia/Documents/1A/05_uncertainty_quantification/data/AirfRANS'
+dataset = AirfRANSDataset('scarce',train=True, root=root, normalize=True, pre_transform=pre_transform, force_reload=False)
 
 # random train-test split
 train_idx, test_idx = train_test_split(range(len(dataset)), test_size=0.2, random_state=42)
@@ -34,6 +49,8 @@ test_set = dataset[test_idx]
 train_loader = DataLoader(train_set, batch_size=16, shuffle=True)
 test_loader = DataLoader(test_set, batch_size=16, shuffle=False)
 
+# total number of features N + 2 + 2 + 1 (Fourier+global params+pos+curvature)
+n = N+2+2+1
 # model = EncodeProcessDecode(
 #             node_features=3+n,
 #             edge_features=3,
@@ -49,8 +66,8 @@ model = ZigZag(
             hidden_features=64,
             n_blocks=6,
             out_nodes=1,
-            out_glob=1,
-            z0=-2.0, latent=True
+            out_glob=0,
+            z0=-2.0, latent=False
             )
 
 # model = Ensemble(
@@ -78,7 +95,7 @@ loss = lambda y, pred: torch.mean((y-pred)**2)
 
 initial_lr = 5e-3
 final_lr = 1e-4
-epochs = 200
+epochs = 52
 gamma = (final_lr/initial_lr)**(1/epochs)
 
 trainer = Trainer(
@@ -101,7 +118,7 @@ trainer = Trainer(
 #     scheduler_kwargs={'gamma':gamma}
 # )
 
-trainer.fit(train_loader, test_loader, '../out/zigzag_latent_eigshapes_xonly_nopos.pt')
+trainer.fit(train_loader, test_loader, '../out/test_airfrans.pt')
 torch.save(train_idx, '../out/train_idx.pt')
 torch.save(test_idx, '../out/test_idx.pt')
 

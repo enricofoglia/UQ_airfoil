@@ -122,7 +122,7 @@ class Trainer():
         print( '| Training ended                   |')
         print( '+----------------------------------+')
         print(f'| Final Loss : {self.training_history[-1]:<19.3f} |')
-        print(f'| Bets Loss  : {self.best_loss:<19.3f} |')
+        print(f'| Best Loss  : {self.best_loss:<19.3f} |')
         print( '+----------------------------------+')
 
     def _train_epoch(self, loader, model):
@@ -133,33 +133,11 @@ class Trainer():
             # reset gradients
             self.optimizer.zero_grad()
 
-            # compute loss
-            y = batch.y
-            y_glob = batch.y_glob
-
             if model.kind == 'simple_gnn' or model.kind == 'dropout':
-                pred, pred_glob  = model(batch)
-                loss = (self.loss_fn(pred.squeeze(), y.squeeze()) 
-                        + self.weight*self.loss_fn(pred_glob.squeeze(), y_glob.squeeze()))
-            elif model.kind == 'zigzag':
-                pred1, pred_glob1  = model(batch)
-                pred2, pred_glob2  = model(batch, pred1)
+                loss = self._loss_feedforward(model, batch)
 
-                # the 0.5 helps comparing the loss of zigzag and the simple gnn
-                loss = 0.5*(self.loss_fn(pred1.squeeze(), y.squeeze()) 
-                        + self.weight*self.loss_fn(pred_glob1.squeeze(), y_glob.squeeze())
-                        + self.loss_fn(pred2.squeeze(), y.squeeze()) 
-                        + self.weight*self.loss_fn(pred_glob2.squeeze(), y_glob.squeeze()))
-                
-            elif model.kind == 'latent_zigzag':
-                pred1, pred_glob1, h  = model(batch, return_hidden=True)
-                pred2, pred_glob2  = model(batch, h)
-
-                # the 0.5 helps comparing the loss of zigzag and the simple gnn
-                loss = 0.5*(self.loss_fn(pred1.squeeze(), y.squeeze()) 
-                        + self.weight*self.loss_fn(pred_glob1.squeeze(), y_glob.squeeze())
-                        + self.loss_fn(pred2.squeeze(), y.squeeze()) 
-                        + self.weight*self.loss_fn(pred_glob2.squeeze(), y_glob.squeeze()))
+            elif model.kind == 'zigzag' or model.kind == 'latent_zigzag':
+                loss = self._loss_zigzag(model, batch)
             else:
                 raise ValueError(f'Unrecognized kind of model "{model.kind}"')
             # backpropagate and step
@@ -169,7 +147,47 @@ class Trainer():
             batch_count += 1
             current_loss += loss.item()
 
-        return current_loss/batch_count
+        return current_loss/batch_count         
+
+    def _loss_zigzag(self, model, batch):
+        y = batch.y
+        if hasattr(batch, 'y_glob'):
+            y_glob = batch.y_glob
+            if 'latent' not in model.kind.split('_'):
+                pred1, pred_glob1 = model(batch)
+                feedback = pred1
+            else:
+                pred1, pred_glob1, feedback = model(batch, return_hidden=True)
+            pred2, pred_glob2 = model(batch, feedback)
+            loss = 0.5*(self.loss_fn(pred1.squeeze(), y.squeeze()) 
+                        + self.weight*self.loss_fn(pred_glob1.squeeze(), y_glob.squeeze())
+                        + self.loss_fn(pred2.squeeze(), y.squeeze()) 
+                        + self.weight*self.loss_fn(pred_glob2.squeeze(), y_glob.squeeze()))
+        else:
+            if 'latent' not in model.kind.split('_'):
+                pred1 = model(batch)
+                feedback = pred1
+            else:
+                pred1, feedback = model(batch, return_hidden=True)
+            pred2 = model(batch, feedback)
+            loss = 0.5*(self.loss_fn(pred1.squeeze(), y.squeeze()) 
+                        + self.loss_fn(pred2.squeeze(), y.squeeze()))
+            
+        return loss
+
+
+    def _loss_feedforward(self, model, batch):
+        y = batch.y
+        if hasattr(batch, 'y_glob'):
+            y_glob = batch.y_glob
+            pred, pred_glob = model(batch)
+            loss = (self.loss_fn(pred.squeeze(), y.squeeze()) 
+                        + self.weight*self.loss_fn(pred_glob.squeeze(), y_glob.squeeze()))
+        else:
+            pred = model(batch)
+            loss = (self.loss_fn(pred.squeeze(), y.squeeze()))
+                       
+        return loss
     
     def _test_epoch(self, loader, model):
         batch_count = 0
@@ -177,11 +195,7 @@ class Trainer():
         model.eval()
         for batch in loader:
             batch = batch.to(self.device)
-            y = batch.y
-            y_glob = batch.y_glob
-            pred, pred_glob  = model(batch)
-            loss = (self.loss_fn(pred.squeeze(), y.squeeze()) 
-                    + self.weight*self.loss_fn(pred_glob.squeeze(), y_glob.squeeze()))
+            loss = self._loss_feedforward(model, batch)
 
             batch_count += 1
             current_loss += loss.item()

@@ -177,6 +177,8 @@ class EncodeProcessDecode(nn.Module):
         dropout (bool, optional): whether to include dropout layers in the 
             mini-MLPs (default :obj:`False`)
         p (float, optional): probability of dropout (default :obj:`0.1`)
+
+    TODO: maybe separate in two classes for dropout and not dropout and then use a super class.
     '''
     def __init__(
             self,
@@ -200,8 +202,9 @@ class EncodeProcessDecode(nn.Module):
             blocks = [GNNBlock(hidden_features, hidden_features,dropout=dropout,p=p) for _ in range(n_blocks)]
             self.processor = nn.ModuleList(blocks)
             self.decoder_nodes = DropoutMLP(hidden_features, out_nodes, [hidden_features],p)
-            self.node2glob = SoftmaxAggregation(learn=True)
-            self.decoder_glob = DropoutMLP(hidden_features, out_glob, [hidden_features, hidden_features],p)
+            if out_glob > 0:
+                self.node2glob = SoftmaxAggregation(learn=True)
+                self.decoder_glob = DropoutMLP(hidden_features, out_glob, [hidden_features, hidden_features],p)
 
         else:
             self.encoder_nodes = MiniMLP(node_features, hidden_features, [hidden_features])
@@ -209,8 +212,9 @@ class EncodeProcessDecode(nn.Module):
             blocks = [GNNBlock(hidden_features, hidden_features,dropout=dropout,p=p) for _ in range(n_blocks)]
             self.processor = nn.ModuleList(blocks)
             self.decoder_nodes = MiniMLP(hidden_features, out_nodes, [hidden_features])
-            self.node2glob = SoftmaxAggregation(learn=True)
-            self.decoder_glob = MiniMLP(hidden_features, out_glob, [hidden_features, hidden_features])
+            if out_glob > 0:
+                self.node2glob = SoftmaxAggregation(learn=True)
+                self.decoder_glob = MiniMLP(hidden_features, out_glob, [hidden_features, hidden_features])
 
 
     def forward(self, data:Data, return_hidden:bool=False)->Tuple[Tensor, Tensor]:
@@ -238,12 +242,16 @@ class EncodeProcessDecode(nn.Module):
         y = self.decoder_nodes(node_feature)
 
         # global aggregation
-        batch = data.batch
-        glob_in = self.node2glob(node_feature, batch,dim=-2)
-        glob_out = self.decoder_glob(glob_in)
+        if hasattr(self, 'node2glob'):
+            batch = data.batch
+            glob_in = self.node2glob(node_feature, batch,dim=-2)
+            glob_out = self.decoder_glob(glob_in)
 
-        if return_hidden: return y, glob_out, node_feature
-        return y, glob_out
+            if return_hidden: return y, glob_out, node_feature
+            return y, glob_out
+        else:
+            if return_hidden: return y, node_feature
+            return y
     
 class ZigZag(EncodeProcessDecode):
     r'''Implementation of ZigZag to estimate the epistemic uncertainty of a graph network. 
@@ -303,13 +311,22 @@ class ZigZag(EncodeProcessDecode):
         r'''Call ZigZag twice to return the epistemic uncertainty on the 
         node and global features.
         '''
-        if self.kind == 'latent_zigzag':
-            y1, y_glob1, h = self.forward(data, return_hidden=True)
-            y2, y_glob2 = self.forward(data, y=h.detach())
+        if hasattr(self, 'node2glob'):
+            if self.kind == 'latent_zigzag':
+                y1, y_glob1, h = self.forward(data, return_hidden=True)
+                y2, y_glob2 = self.forward(data, y=h.detach())
+            else:
+                y1, y_glob1 = self.forward(data)
+                y2, y_glob2 = self.forward(data, y=y1.detach())
+            return 0.5*(y1+y2), 0.5*(y_glob1+y_glob2), 0.5*(y1-y2)**2,  0.5*(y_glob1-y_glob2)**2
         else:
-            y1, y_glob1 = self.forward(data)
-            y2, y_glob2 = self.forward(data, y=y1.detach())
-        return 0.5*(y1+y2), 0.5*(y_glob1+y_glob2), 0.5*(y1-y2)**2,  0.5*(y_glob1-y_glob2)**2
+            if self.kind == 'latent_zigzag':
+                y1, h = self.forward(data, return_hidden=True)
+                y2 = self.forward(data, y=h.detach())
+            else:
+                y1 = self.forward(data)
+                y2 = self.forward(data, y=y1.detach())
+            return 0.5*(y1+y2), 0.5*(y1-y2)**2
 
 
 class Ensemble(nn.Module):

@@ -306,7 +306,6 @@ class AirfRANSDataset(Dataset):
             alpha_mean += a 
         self._glob_mean = (u_mean / len(self._raw_file_names), 
                            alpha_mean / len(self._raw_file_names))
-        self._normalized = True
         return self._glob_mean
     
     @property
@@ -320,8 +319,8 @@ class AirfRANSDataset(Dataset):
             u, a = self._process_name(name) 
             u_var += (u - u_mean)**2
             alpha_var += (a - alpha_mean)**2 
-        self._glob_std =  (np.sqrt(u_var / len(self._raw_file_names)), 
-                np.sqrt(alpha_var / len(self._raw_file_names)))
+        self._glob_std =  (np.sqrt(u_var / (len(self._raw_file_names)-1)), 
+                np.sqrt(alpha_var / (len(self._raw_file_names)-1)))
         self._normalized = True
         return self._glob_std
 
@@ -644,7 +643,7 @@ if __name__ == '__main__':
     # root = '/home/daep/e.foglia/Documents/1A/05_uncertainty_quantification/data/airfoils/train_shapes'
     # dataset = XFoilDataset(root, pre_transform=pre_transform, force_reload=True)
     root = '/home/daep/e.foglia/Documents/1A/05_uncertainty_quantification/data/AirfRANS'
-    dataset = AirfRANSDataset('scarce', True, root, normalize=True, pre_transform=pre_transform, force_reload=False)
+    dataset = AirfRANSDataset('scarce', True, root, normalize=True, pre_transform=pre_transform, force_reload=True)
     index = 0
     for point in dataset:
         print(f'Checking point {index} ...')

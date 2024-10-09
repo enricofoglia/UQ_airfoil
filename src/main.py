@@ -91,7 +91,7 @@ loss = lambda y, pred: torch.mean((y-pred)**2)
 
 initial_lr = 5e-3
 final_lr = 1e-4
-epochs = 52
+epochs = 200
 gamma = (final_lr/initial_lr)**(1/epochs)
 
 trainer = Trainer(

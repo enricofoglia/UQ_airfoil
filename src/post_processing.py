@@ -118,7 +118,7 @@ import time
 tic = int(time.time())
 random.seed(tic)
 
-indices = random.choices(range(len(test_dataset)),k=4)
+indices = random.sample(range(len(test_dataset)),k=4,)
 print(f'| Selected indices {indices}')
 print( '+---------------------------------+')
 
@@ -138,9 +138,9 @@ for i, ind in enumerate(indices):
     std = torch.sqrt(var)
 
 
-    ax[row,col].scatter(graph.pos[:,0], graph.y, c='k', marker='x', label='ground truth')
-    ax[row,col].scatter(graph.pos[:,0], pred.squeeze(), c='none', edgecolor='tab:blue', 
-                       label='prediction')
+    ax[row,col].plot(graph.pos[:,0], graph.y, color='k', label='ground truth')
+    ax[row,col].plot(graph.pos[:,0], pred.squeeze(), color='tab:blue', linestyle='--', label='prediction')
+    ax[row, col].fill_between(graph.pos[:,0], pred.squeeze()+std.squeeze(), pred.squeeze()-std.squeeze(), alpha=0.6)
     ax[row,col].set_ylim(ax[row,col].get_ylim()[::-1])
     if row == 1:
         ax[row,col].set_xlabel(r'$x/c$ [-]')
@@ -149,13 +149,21 @@ for i, ind in enumerate(indices):
     
 ax[0,1].legend()
 
-for ind, graph in tqdm(enumerate(train_dataset)):
-    fig, ax = plt.subplots()
-    ax.plot(graph.pos[:,0], graph.pos[:,1], 'o-')
-    ax.set_title(f'index {ind}')
-    plt.savefig(f'../out/sample{ind}.png')
-    plt.close()
+# for ind, graph in tqdm(enumerate(train_dataset), total=len(train_dataset)):
+#     fig, ax = plt.subplots()
+#     ax.plot(graph.pos[:,0], graph.pos[:,1], 'o-')
+#     ax.set_title(f'index {ind}')
+#     plt.savefig(f'../out/sample{ind}.png')
+#     plt.close()
 
+# single plot with uncertainty
+fig, ax = plt.subplots(figsize=(8,5))
+ax.plot(graph.pos[:,0], graph.y, color='k', label='ground truth')
+ax.plot(graph.pos[:,0], pred.squeeze(), color='tab:blue', linestyle='--', label='prediction')
+ax.fill_between(graph.pos[:,0], pred.squeeze()+std.squeeze(), pred.squeeze()-std.squeeze(), alpha=0.6)
+ax.set_xlabel(r'$x/c$ [-]')
+ax.set_ylabel(r'$c_p$ [-]')
+ax.set_ylim(ax.get_ylim()[::-1])
 
 # add calibration plot
 auce, p_err, p_pred = auce_plot(graph.y.numpy(),pred.squeeze().numpy(),
@@ -164,7 +172,7 @@ left, bottom, width, height = 0.65, 0.55, 0.23, 0.3
 ax2 = fig.add_axes([left, bottom, width, height])
 ax2.plot(p_err, p_pred)
 ax2.fill_between(p_err, p_pred, p_err, color='tab:blue', alpha=0.3)
-ax2.plot([0,1],[0,1],'k--',label='perfect calibration')
+ax2.plot([0,1],[0,1],'k--')
 ax2.set_ylabel('True probability', fontsize=12, labelpad=1.0)
 ax2.set_xlabel('Predicted probability', fontsize=12, labelpad=1.0)
 ax2.xaxis.set_tick_params(labelsize=10, direction='in')
@@ -172,7 +180,6 @@ ax2.yaxis.set_tick_params(labelsize=10, direction='in')
 ax2.set_xlim([0,1])
 ax2.set_ylim([0,1])
 ax2.text(0.05, 0.85, f'AUCE={auce:.2f}', fontsize=12)
-ax2.legend(loc='lower right')
 
 
 # preds = []
@@ -202,5 +209,5 @@ ax2.legend(loc='lower right')
 # ece_plot(np.array(gt), np.array(preds), np.array(std_list),
 #          B=8, binning='quantile')
 
-# plt.show()
+plt.show()
 

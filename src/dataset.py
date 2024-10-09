@@ -25,9 +25,6 @@ from torch_geometric.transforms import Distance, BaseTransform
 
 import numpy as np
 from scipy.interpolate import CubicSpline
-from scipy.spatial import distance_matrix
-
-import networkx as nx
 
 import airfrans as af
 
@@ -410,26 +407,24 @@ class AirfRANSDataset(Dataset):
         # extract airfoil skin
         skin_idx = np.nonzero(data[:,4]==0)
         return data[skin_idx]
-
+    
     def _order_points(self, points):
-        '''Order the points using the Christofides heuristic for the travelling
-        salesperson problem.
+        '''Order the points by splitting in suction and pressure side using 
+        the orientation of the normals.
         '''
-        if points.shape[1] > 2:
-            data = points[:,0:2]
-        else:
-            data = points
 
-        dist_matrix = distance_matrix(data, data, p=2)
+        suction_side = points[points[:,6]<0]
+        pressure_side = points[points[:,6]>=0]
 
-        G = nx.Graph()
-        for i in range(len(points)):
-            for j in range(len(points)):
-                G.add_edge(i, j, weight=dist_matrix[i,j])
-        ordered_indices = nx.algorithms.approximation.christofides(G)
+    
+        indices_suction = np.argsort(suction_side[:,0])[::-1]
+        indices_pressure = np.argsort(pressure_side[:,0])
 
-        ordered_points = points[ordered_indices[:-1]]
-        return ordered_points
+        return np.concatenate((suction_side[indices_suction],
+                                pressure_side[indices_pressure]))
+
+
+
 
     def _make_periodic(self, x):
         try:

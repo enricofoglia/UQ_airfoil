@@ -32,12 +32,8 @@ N = 25
 n_points = 250
 pre_transform = transforms.Compose((UniformSampling(n=n_points), FourierEpicycles(n=N), TangentVec(), Distance()))
 
-# pre_transform = FourierEpicycles(n=N)
-
-
-# root = '/home/daep/e.foglia/Documents/1A/05_uncertainty_quantification/data/airfoils/train_shapes'
-# dataset = XFoilDataset(root, pre_transform=pre_transform, force_reload=True)
-root = '/home/daep/e.foglia/Documents/1A/05_uncertainty_quantification/data/AirfRANS'
+# root = '/home/daep/e.foglia/Documents/1A/05_uncertainty_quantification/data/AirfRANS' # local
+root = '/home/daep/e.foglia/Documents/02_UQ/01_airfrans/01_data/raw' # pando
 dataset = AirfRANSDataset('scarce',train=True, root=root, normalize=True, pre_transform=pre_transform, force_reload=False)
 
 # random train-test split

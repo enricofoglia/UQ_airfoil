@@ -248,14 +248,14 @@ class AirfRANSDataset(Dataset):
     '''
     def __init__(self,
                  task: str,
-                 train: bool | None = True,
-                 root: str | None = None,
-                 normalize: bool | None = True,
-                 transform: Callable[..., Any] | None = None,
-                 pre_transform: Callable[..., Any] | None = None,
-                 pre_filter: Callable[..., Any] | None = None,
-                 log: bool = True,
-                 force_reload: bool = False) -> None:
+                 train: Optional[bool] | None = True,
+                 root: Optional[str] = None,
+                 normalize: Optional[bool] = True,
+                 transform: Optional[Callable[..., Any]] = None,
+                 pre_transform: Optional[Callable[..., Any]] = None,
+                 pre_filter: Optional[Callable[..., Any]] = None,
+                 log: Optional[bool] = True,
+                 force_reload: Optional[bool] = False) -> None:
         
         # set up raw directory
         self.root = root

@@ -16,7 +16,8 @@ from typing import (
     Optional,
     Callable,
     Dict,
-    Any
+    Any,
+    Union
 )
 
 import torch 
@@ -62,7 +63,7 @@ class Trainer():
             model:Module,
             optimizer:Optional[Optimizer]=Adam,
             loss_fn:Optional[Callable[..., Any]]=MSELoss(),
-            device:Optional[str]='cpu',
+            device:Optional[Union[torch.device, str]]='cpu',
             scheduler:Optional[LRScheduler]=None,
             optim_kwargs:Optional[Dict[str,Any]]=None,
             scheduler_kwargs:Optional[Dict[str,Any]]=None,
@@ -76,7 +77,11 @@ class Trainer():
         else: 
             self.optimizer = optimizer(self.model.parameters())
         self.loss_fn = loss_fn
-        self.device = device
+
+        if isinstance(device, str):
+            self.device = torch.device(device)
+        else:
+            self.device = device
 
         if scheduler is not None:
             if scheduler_kwargs is not None:
@@ -239,13 +244,13 @@ class EnsembleTrainer(Trainer):
     def __init__(self,
                  epochs: int,
                  ensemble: Module,
-                 optimizer: str | None = 'adam',
-                 loss_fn: Callable[..., Any] | None = MSELoss(),
-                 device: str | None = 'cpu',
-                 scheduler: LRScheduler | None = None,
-                 optim_kwargs: Dict[str, Any] | None = None,
-                 scheduler_kwargs: Dict[str, Any] | None = None,
-                 weight: float | None = 0.01) -> None:
+                 optimizer: Optional[str] = 'adam',
+                 loss_fn: Optional[Callable[..., Any]] = MSELoss(),
+                 device: Optional[Union[torch.device,str]] = 'cpu',
+                 scheduler: Optional[LRScheduler] = None,
+                 optim_kwargs: Optional[Dict[str, Any]] = None,
+                 scheduler_kwargs: Optional[Dict[str, Any]] = None,
+                 weight: Optional[float] = 0.01) -> None:
         
         self.epochs = epochs
         self.ensemble = ensemble
@@ -256,8 +261,10 @@ class EnsembleTrainer(Trainer):
         self.scheduler_kwargs = scheduler_kwargs
 
         self.loss_fn = loss_fn
-        self.device = device
-
+        if isinstance(device, str):
+            self.device = torch.device(device)
+        else:
+            self.device = device
         
         self.weight = weight
 

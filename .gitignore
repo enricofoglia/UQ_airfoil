@@ -9,3 +9,7 @@ out/
 
 # scratch test files
 scratch*.py
+
+# cluster job files
+*.slurm
+job_train

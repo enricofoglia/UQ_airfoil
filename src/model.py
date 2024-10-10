@@ -403,7 +403,7 @@ class MCDropout(EncodeProcessDecode):
                  n_blocks: int,
                  out_nodes: int,
                  out_glob: int,
-                 dropout: bool | None = True,
+                 dropout: Optional[bool] = True,
                  p:Optional[float]=0.1):
         
         

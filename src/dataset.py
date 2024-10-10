@@ -33,7 +33,16 @@ class GeometricData(Data):
     :obj:`curvature` methods, provided that the :obj:`TangentVec` transform 
     has been previously called on an object of this class. 
     '''
-    def __init__(self, x: torch.Tensor | None = None, edge_index: torch.Tensor | None = None, edge_attr: torch.Tensor | None = None, y: torch.Tensor | int | float | None = None, pos: torch.Tensor | None = None, time: torch.Tensor | None = None, **kwargs):
+    def __init__(
+            self,
+            x: Optional[torch.Tensor] = None,
+            edge_index: Optional[torch.Tensor] = None,
+            edge_attr: Optional[torch.Tensor] = None,
+            y: Optional[Union[torch.Tensor, int, float]] = None,
+            pos: Optional[torch.Tensor] = None,
+            time: Optional[torch.Tensor] = None,
+            **kwargs
+            ):
         super().__init__(x, edge_index, edge_attr, y, pos, time, **kwargs)
 
     @property
@@ -248,7 +257,7 @@ class AirfRANSDataset(Dataset):
     '''
     def __init__(self,
                  task: str,
-                 train: Optional[bool] | None = True,
+                 train: Optional[bool] = True,
                  root: Optional[str] = None,
                  normalize: Optional[bool] = True,
                  transform: Optional[Callable[..., Any]] = None,

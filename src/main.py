@@ -1,3 +1,5 @@
+import os
+
 import torch 
 from torch.optim import Adam
 from torch.nn import MSELoss
@@ -33,17 +35,17 @@ n_points = 250
 pre_transform = transforms.Compose((UniformSampling(n=n_points), FourierEpicycles(n=N), TangentVec(), Distance()))
 
 # root = '/home/daep/e.foglia/Documents/1A/05_uncertainty_quantification/data/AirfRANS' # local
-root = '/home/daep/e.foglia/Documents/02_UQ/01_airfrans/01_data/raw' # pando
-dataset = AirfRANSDataset('scarce',train=True, root=root, normalize=True, pre_transform=pre_transform, force_reload=False)
-
+root = '/home/daep/e.foglia/Documents/02_UQ/01_airfrans/01_data/' # pando
+train_dataset = AirfRANSDataset('full',train=True, root=root, normalize=True, pre_transform=pre_transform, force_reload=True)
+test_dataset = AirfRANSDataset('full',train=False, root=root, normalize=True, pre_transform=pre_transform, force_reload=True)
 # random train-test split
-train_idx, test_idx = train_test_split(range(len(dataset)), test_size=0.2, random_state=42)
-train_set = dataset[train_idx]
-test_set = dataset[test_idx]
+# train_idx, test_idx = train_test_split(range(len(dataset)), test_size=0.2, random_state=42)
+# train_set = dataset[train_idx]
+# test_set = dataset[test_idx]
 
 # create loaders
-train_loader = DataLoader(train_set, batch_size=16, shuffle=True)
-test_loader = DataLoader(test_set, batch_size=16, shuffle=False)
+train_loader = DataLoader(train_dataset, batch_size=16, shuffle=True)
+test_loader = DataLoader(test_dataset, batch_size=16, shuffle=False)
 
 # total number of features N + 2 + 2 + 1 (Fourier+global params+pos+curvature)
 n = N+2+2+1
@@ -55,6 +57,10 @@ n = N+2+2+1
 #             out_nodes=1,
 #             out_glob=1
 #             )
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+print( '----------------------------')
+print(f' Available device: {device}')
+print( '----------------------------')
 
 model = ZigZag(
             node_features=n,
@@ -64,7 +70,7 @@ model = ZigZag(
             out_nodes=1,
             out_glob=0,
             z0=-2.0, latent=False
-            )
+            ).to(device)
 
 # model = Ensemble(
 #             n_models=5,
@@ -101,7 +107,8 @@ trainer = Trainer(
     optim_kwargs={'lr':initial_lr},
     loss_fn=loss,
     scheduler=ExponentialLR,
-    scheduler_kwargs={'gamma':gamma}
+    scheduler_kwargs={'gamma':gamma},
+    device=device
 )
 
 # trainer = EnsembleTrainer(
@@ -114,9 +121,11 @@ trainer = Trainer(
 #     scheduler_kwargs={'gamma':gamma}
 # )
 
-trainer.fit(train_loader, test_loader, '../out/test_airfrans.pt')
-torch.save(train_idx, '../out/train_idx.pt')
-torch.save(test_idx, '../out/test_idx.pt')
+out_dir = '/home/daep/e.foglia/Documents/02_UQ/01_airfrans/03_results'
+
+trainer.fit(train_loader, test_loader, os.path.join(out_dir,'trained_models/test_full_airfrans.pt'))
+# torch.save(train_idx, os.path.join(out_dir,'train_idx.pt'))
+# torch.save(test_idx, os.path.join(out_dir,'test_idx.pt'))
 
 import matplotlib.pyplot as plt
 fig, ax = plt.subplots()
@@ -126,11 +135,11 @@ ax.legend()
 ax.set_xlabel('epoch')
 ax.set_ylabel(r'loss $\mathcal{L}(\theta)$')
 ax.set_title('Training history')
-plt.savefig('../out/training_history.png', dpi=300)
+plt.savefig(os.path.join(out_dir,'training_history.png'), dpi=300)
 
 fig, ax = plt.subplots()
 ax.semilogy(trainer.lr_history)
 ax.set_xlabel('epoch')
 ax.set_ylabel('learning rate $l_r$')
 ax.set_title('Learing rate history')
-plt.savefig('../out/lr_history.png', dpi=300)
+plt.savefig(os.path.join(out_dir,'lr_history.png'), dpi=300)

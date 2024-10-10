@@ -56,8 +56,8 @@ root = '/home/daep/e.foglia/Documents/1A/05_uncertainty_quantification/data/Airf
 dataset = AirfRANSDataset('scarce', False, root, normalize=True, pre_transform=pre_transform, force_reload=False)
 
 # load train-test split as in training
-train_idx = torch.load('../out/train_idx.pt')
-test_idx = torch.load('../out/test_idx.pt')
+train_idx = torch.load('../../out/train_idx.pt')
+test_idx = torch.load('../../out/test_idx.pt')
 train_dataset = dataset[train_idx]
 test_dataset  = dataset[test_idx]
 
@@ -101,7 +101,7 @@ model = ZigZag(
 #             p=0.1
 #             )
 
-model.load_state_dict(torch.load('../out/test_full_airfrans.pt',
+model.load_state_dict(torch.load('../../out/test_full_airfrans.pt',
                                  map_location=torch.device('cpu')))
 # for n,single_model in enumerate(model):
     # single_model.load_state_dict(torch.load(f'../out/ensemble/ensemble_{n}.pt'))

@@ -63,7 +63,6 @@ def auce_plot(y:np.ndarray, preds:np.ndarray, std:np.ndarray,
         ax.set_title(f'Calibration Plot, AUCE = {auce:.2f}')
         ax.set_xlim([0,1])
         ax.set_ylim([0,1])
-        ax.legend()
 
     if get_values: return auce, p_err, p_pred
     return auce
@@ -160,6 +159,5 @@ def ece_plot(y_test:np.ndarray, mu:np.ndarray, var:np.ndarray,
         ax.set_ylabel(f'RMSE-{order}')
         ax.set_xlabel('RMV')
         ax.set_title(f'Calibration plot; ENCE-{order} = {ence:.2f}, $c_v$= {cv:.2f}')
-        ax.legend()
     if get_values: return ence, rmv, rmse
     else: return ence

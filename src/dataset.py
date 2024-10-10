@@ -243,7 +243,9 @@ class AirfRANSDataset(Dataset):
     transformation.
 
     Args: 
-        task (str): task to determine which version of the dataset to load
+        task (str): task to determine which version of the dataset to load. 
+        Possible values are :obj:`'full'`, :obj:`'scarce'`, :obj:`'reynolds'` 
+        or :obj:`'aoa'`.
         train (bool, optional): wether to load the train or test split (default :obj:`True`)
         root (str, optional): root directoty (default :obj:`None`)
         normalize (bool, optional): if :obj:`True`, standardize global outputs (default :obj:`False`) and normalize pressure using :math:`1/2u^2` sample-wise.

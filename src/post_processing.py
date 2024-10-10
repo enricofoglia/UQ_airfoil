@@ -53,7 +53,7 @@ pre_transform = transforms.Compose((UniformSampling(n=n_points), FourierEpicycle
 # root = '/home/daep/e.foglia/Documents/1A/05_uncertainty_quantification/data/airfoils/train_shapes'
 # dataset = XFoilDataset(root, pre_transform=pre_transform, force_reload=True)
 root = '/home/daep/e.foglia/Documents/1A/05_uncertainty_quantification/data/AirfRANS'
-dataset = AirfRANSDataset('scarce', True, root, normalize=True, pre_transform=pre_transform, force_reload=False)
+dataset = AirfRANSDataset('scarce', False, root, normalize=True, pre_transform=pre_transform, force_reload=False)
 
 # load train-test split as in training
 train_idx = torch.load('../out/train_idx.pt')
@@ -101,7 +101,8 @@ model = ZigZag(
 #             p=0.1
 #             )
 
-model.load_state_dict(torch.load('../out/test_airfrans.pt'))
+model.load_state_dict(torch.load('../out/test_full_airfrans.pt',
+                                 map_location=torch.device('cpu')))
 # for n,single_model in enumerate(model):
     # single_model.load_state_dict(torch.load(f'../out/ensemble/ensemble_{n}.pt'))
 
@@ -182,32 +183,35 @@ ax2.set_ylim([0,1])
 ax2.text(0.05, 0.85, f'AUCE={auce:.2f}', fontsize=12)
 
 
-# preds = []
-# gt    = []
-# std_list = []
-# with torch.no_grad():
-#     for graph in tqdm(test_dataset, desc='Processing dataset ...'):
-#         if model.kind == 'dropout':
-#             _, pred_glob, _, var_glob = model(graph, T=50, return_var=True)
-#         else: 
-#             _, pred_glob, _, var_glob = model(graph, return_var=True)
-#         gt.append(graph.y_glob.item())
-#         preds.append(pred_glob.item())
-#         std_list.append(torch.sqrt(var_glob).item())
+preds = []
+gt    = []
+std_list = []
+with torch.no_grad():
+    for graph in tqdm(test_dataset, desc='Processing dataset ...'):
+        if model.kind == 'dropout':
+            pred, var = model(graph, T=50, return_var=True)
+        else: 
+            pred, var = model(graph, return_var=True)
+        gt.append(graph.y.numpy())
+        preds.append(pred.numpy())
+        std_list.append(torch.sqrt(var).numpy())
 
-# r2 = r2_score(gt, preds)
+preds = np.concatenate(preds).squeeze()
+gt = np.concatenate(gt).squeeze()
+std = np.concatenate(std_list).squeeze()
 
-# fig, ax = plt.subplots()
-# ax.scatter(preds, gt, alpha=0.7)
-# ax.plot(gt,gt, 'k--', label='perfect fit')
-# ax.set_xlabel('predicted')
-# ax.set_ylabel('true')
-# ax.set_title(f'Correlation plot; $R^2$ score = {r2:.2f}')
+r2 = r2_score(gt, preds)
 
-# # auce
-# auce_plot(np.array(gt), np.array(preds), np.array(std_list))
-# ece_plot(np.array(gt), np.array(preds), np.array(std_list),
-#          B=8, binning='quantile')
+fig, ax = plt.subplots()
+ax.scatter(preds, gt, alpha=0.5, s=10)
+ax.plot(gt,gt, 'k--', label='perfect fit')
+ax.set_xlabel('predicted')
+ax.set_ylabel('true')
+ax.set_title(f'Correlation plot; $R^2$ score = {r2:.2f}')
+
+# auce
+auce_plot(gt, preds, std)
+ece_plot(gt, preds, std, B=8, binning='quantile')
 
 plt.show()
 

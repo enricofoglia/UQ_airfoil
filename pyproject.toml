@@ -1,0 +1,13 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+# Project metadata (optional, PEP 621)
+[project]
+name = "UQ_airfoil"
+version = "0.1.0"
+description = "A package for uncertainty quantification"
+authors = [{name = "Enrico Foglia", email = "enrico.foglia@isae-supaero.fr"}]
+license = {text = "MIT"}
+dependencies = ["numpy","tqdm","torch","torch_geometric","scipy","airfrans","matplotlib","scikit-learn","torchvision"]
+python-version = ">=3.8"

@@ -13,3 +13,6 @@ scratch*.py
 # cluster job files
 *.slurm
 job_train
+
+# package installation byproducts
+*egg-info

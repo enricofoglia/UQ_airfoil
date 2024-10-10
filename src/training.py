@@ -46,7 +46,7 @@ class Trainer():
             yet to be initialized (default :obj:`Adam`).
         loss_fn (Callable, optional): loss function :math:`\ell(\widehat{y},y)`
             (default :obj:`MSELoss()`)
-        device (str, optional); type of device (default :obj:`"cpu"`)
+        device (str or torch.device, optional): type of device (default :obj:`"cpu"`)
         scheduler (torch.optim.lr_scheduler.LRScheduler or None, optional):
             learning rate scheduler, to be initialized (default :obj:`None`)
         optim_kwargs (dict or None, optional): keyword argument to initialize

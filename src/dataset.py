@@ -244,11 +244,10 @@ class AirfRANSDataset(Dataset):
 
     Args: 
         task (str): task to determine which version of the dataset to load. 
-        Possible values are :obj:`'full'`, :obj:`'scarce'`, :obj:`'reynolds'` 
-        or :obj:`'aoa'`.
+            Possible values are :obj:`'full'`, :obj:`'scarce'`, :obj:`'reynolds'` or :obj:`'aoa'`.
         train (bool, optional): wether to load the train or test split (default :obj:`True`)
         root (str, optional): root directoty (default :obj:`None`)
-        normalize (bool, optional): if :obj:`True`, standardize global outputs (default :obj:`False`) and normalize pressure using :math:`1/2u^2` sample-wise.
+        normalize (bool or tuple, optional): if :obj:`True`, standardize global outputs (default :obj:`False`) and normalize pressure using :math:`1/2u^2` sample-wise. It is also possible to pass a tuple with precomputed mean and std, as :math:`((\mu_u,\mu_{\alpha}),(\sigma_u, \sigma_{\alpha}))`.
         transform (Callable, optional): function to call when retrieving a
             sample (default :obj:`None`)
         pre_transform (Callable, optional): function to call when initializing

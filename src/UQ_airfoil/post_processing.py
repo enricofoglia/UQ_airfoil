@@ -52,14 +52,15 @@ pre_transform = transforms.Compose((UniformSampling(n=n_points), FourierEpicycle
 
 # root = '/home/daep/e.foglia/Documents/1A/05_uncertainty_quantification/data/airfoils/train_shapes'
 # dataset = XFoilDataset(root, pre_transform=pre_transform, force_reload=True)
-root = '/home/daep/e.foglia/Documents/1A/05_uncertainty_quantification/data/AirfRANS'
-dataset = AirfRANSDataset('scarce', False, root, normalize=True, pre_transform=pre_transform, force_reload=False)
+# root = '/home/daep/e.foglia/Documents/1A/05_uncertainty_quantification/data/AirfRANS' # pando
+root = '/home/daep/e.foglia/Documents/1A/05_uncertainty_quantification/data/AirfRANS' # local
 
-# load train-test split as in training
-train_idx = torch.load('../../out/train_idx.pt')
-test_idx = torch.load('../../out/test_idx.pt')
-train_dataset = dataset[train_idx]
-test_dataset  = dataset[test_idx]
+train_dataset = AirfRANSDataset('full', True, root, normalize=True, pre_transform=pre_transform, force_reload=True)
+mean = train_dataset.glob_mean
+std = train_dataset.glob_std
+test_dataset = AirfRANSDataset('scarce', False, root, normalize=(mean,std), pre_transform=pre_transform, force_reload=True)
+
+print(f'len dataset = {len(test_dataset)}')
 
 # model = EncodeProcessDecode(
 #             node_features=3+n,
@@ -201,17 +202,20 @@ gt = np.concatenate(gt).squeeze()
 std = np.concatenate(std_list).squeeze()
 
 r2 = r2_score(gt, preds)
+print( '-------------------')
+print(f' R2 score : {r2:>5.3f}')
+print( '-------------------')
 
 fig, ax = plt.subplots()
-ax.scatter(preds, gt, alpha=0.5, s=10)
-ax.plot(gt,gt, 'k--', label='perfect fit')
+ax.scatter(preds[::100], gt[::100], alpha=0.5, s=10)
+ax.plot(gt[::100],gt[::100], 'k--', label='perfect fit')
 ax.set_xlabel('predicted')
 ax.set_ylabel('true')
 ax.set_title(f'Correlation plot; $R^2$ score = {r2:.2f}')
 
 # auce
-auce_plot(gt, preds, std)
-ece_plot(gt, preds, std, B=8, binning='quantile')
+auce_plot(gt[::10], preds[::10], std[::10])
+ece_plot(gt[::10], preds[::10], std[::10], B=8, binning='quantile')
 
 plt.show()
 

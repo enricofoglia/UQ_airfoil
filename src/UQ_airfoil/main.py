@@ -37,7 +37,9 @@ pre_transform = transforms.Compose((UniformSampling(n=n_points), FourierEpicycle
 # root = '/home/daep/e.foglia/Documents/1A/05_uncertainty_quantification/data/AirfRANS' # local
 root = '/home/daep/e.foglia/Documents/02_UQ/01_airfrans/01_data/' # pando
 train_dataset = AirfRANSDataset('full',train=True, root=root, normalize=True, pre_transform=pre_transform, force_reload=True)
-test_dataset = AirfRANSDataset('full',train=False, root=root, normalize=True, pre_transform=pre_transform, force_reload=True)
+mean = train_dataset.glob_mean
+std = train_dataset.glob_std
+test_dataset = AirfRANSDataset('full',train=False, root=root, normalize=(mean, std), pre_transform=pre_transform, force_reload=True)
 # random train-test split
 # train_idx, test_idx = train_test_split(range(len(dataset)), test_size=0.2, random_state=42)
 # train_set = dataset[train_idx]

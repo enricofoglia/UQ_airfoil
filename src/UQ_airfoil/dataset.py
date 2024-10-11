@@ -304,8 +304,9 @@ class AirfRANSDataset(Dataset):
     
     @property
     def processed_dir(self) -> str:
+        train = 'train' if self.train else 'test'
         os.makedirs(osp.join(self.root, f'processed_{self.task}'), exist_ok=True)
-        return osp.join(self.root, f'processed_{self.task}')
+        return osp.join(self.root, f'processed_{self.task}_{train}')
     
     @property
     def glob_mean(self):

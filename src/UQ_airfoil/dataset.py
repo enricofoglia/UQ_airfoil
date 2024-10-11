@@ -267,6 +267,9 @@ class AirfRANSDataset(Dataset):
                  log: Optional[bool] = True,
                  force_reload: Optional[bool] = False) -> None:
         
+        self.task = task
+        self.train = train
+        
         # set up raw directory
         self.root = root
         self._skip_names = ['manifest.json']
@@ -287,8 +290,6 @@ class AirfRANSDataset(Dataset):
             self._glob_std  = normalize[1]
             self.normalize = True
 
-        self.task = task
-        self.train = train
         super().__init__(root, transform, pre_transform, pre_filter, log, force_reload)
 
     @property

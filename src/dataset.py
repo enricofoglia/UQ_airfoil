@@ -259,7 +259,7 @@ class AirfRANSDataset(Dataset):
                  task: str,
                  train: Optional[bool] = True,
                  root: Optional[str] = None,
-                 normalize: Optional[bool] = True,
+                 normalize: Optional[Union[bool,Tuple[Tuple]]] = True,
                  transform: Optional[Callable[..., Any]] = None,
                  pre_transform: Optional[Callable[..., Any]] = None,
                  pre_filter: Optional[Callable[..., Any]] = None,
@@ -275,10 +275,16 @@ class AirfRANSDataset(Dataset):
             self._processed = True
         else: self._processed = False 
 
-        self._normalized = not normalize 
-        self.normalize = normalize
-        self._glob_mean = (0.0, 0.0)
-        self._glob_std = (1.0,1.0)
+        if isinstance(normalize, bool):
+            self._normalized = not normalize 
+            self.normalize = normalize
+            self._glob_mean = (0.0, 0.0)
+            self._glob_std  = (1.0,1.0)
+        else:
+            self._normalized = True 
+            self._glob_mean = normalize[0]
+            self._glob_std  = normalize[1]
+            self.normalize = True
 
         self.task = task
         self.train = train

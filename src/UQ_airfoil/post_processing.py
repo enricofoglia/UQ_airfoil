@@ -16,7 +16,7 @@ from sklearn.metrics import r2_score
 from dataset import XFoilDataset, FourierEpicycles, TangentVec, UniformSampling, AirfRANSDataset
 from model import EncodeProcessDecode, ZigZag, Ensemble, MCDropout
 from utils import count_parameters, set_seed
-from metrics import auce_plot, ece_plot
+from metrics import auce_plot, ece_plot, TemperatureScaling
 # =================================================
 # Matplotlib settings
 plt.rcParams.update({
@@ -55,10 +55,10 @@ pre_transform = transforms.Compose((UniformSampling(n=n_points), FourierEpicycle
 # root = '/home/daep/e.foglia/Documents/1A/05_uncertainty_quantification/data/AirfRANS' # pando
 root = '/home/daep/e.foglia/Documents/1A/05_uncertainty_quantification/data/AirfRANS' # local
 
-train_dataset = AirfRANSDataset('full', True, root, normalize=True, pre_transform=pre_transform, force_reload=True)
+train_dataset = AirfRANSDataset('full', True, root, normalize=True, pre_transform=pre_transform, force_reload=False)
 mean = train_dataset.glob_mean
 std = train_dataset.glob_std
-test_dataset = AirfRANSDataset('scarce', False, root, normalize=(mean,std), pre_transform=pre_transform, force_reload=True)
+test_dataset = AirfRANSDataset('scarce', False, root, normalize=(mean,std), pre_transform=pre_transform, force_reload=False)
 
 print(f'len dataset = {len(test_dataset)}')
 
@@ -216,6 +216,40 @@ ax.set_title(f'Correlation plot; $R^2$ score = {r2:.2f}')
 # auce
 auce_plot(gt[::10], preds[::10], std[::10])
 ece_plot(gt[::10], preds[::10], std[::10], B=8, binning='quantile')
+
+# temperature scaling
+scaler = TemperatureScaling()
+s = np.sqrt(scaler.fit(preds, std**2, gt))
+print(f'Scaling factor s = {s}')
+print(scaler.res)
+s_list = np.logspace(start=-2, stop = 10, num=100, base=10)
+loss = np.array([scaler._loss(ss, preds, std**2, gt) for ss in s_list])
+
+plt.figure()
+plt.loglog(s_list,loss)
+plt.show()
+auce_plot(gt[::10], preds[::10], s*std[::10])
+ece_plot(gt[::10], preds[::10], s*std[::10], B=8, binning='quantile')
+
+graph = test_dataset[ind]
+with torch.no_grad():
+    if model.kind == 'dropout':
+        pred, var = model(graph, T=50, return_var=True)
+    else: 
+        pred, var = model(graph, return_var=True)
+
+
+std = torch.sqrt(var)
+
+fig, ax = plt.subplots()
+ax.plot(graph.pos[:,0], graph.y, color='k', label='ground truth')
+ax.plot(graph.pos[:,0], pred.squeeze(), color='tab:blue', linestyle='--', label='prediction')
+ax.fill_between(graph.pos[:,0], pred.squeeze()+s*std.squeeze(), pred.squeeze()-s*std.squeeze(), alpha=0.6)
+ax.set_ylim(ax.get_ylim()[::-1])
+ax.set_xlabel(r'$x/c$ [-]')
+ax.set_ylabel(r'$c_p$ [-]')
+    
+ax.legend()
 
 plt.show()
 

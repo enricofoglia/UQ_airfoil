@@ -17,6 +17,7 @@ import scipy.stats as stats
 import numpy as np
 import matplotlib.pyplot as plt
 
+from scipy import optimize
 
 # @title AUCE metric
 def auce_plot(y:np.ndarray, preds:np.ndarray, std:np.ndarray,
@@ -161,3 +162,33 @@ def ece_plot(y_test:np.ndarray, mu:np.ndarray, var:np.ndarray,
         ax.set_title(f'Calibration plot; ENCE-{order} = {ence:.2f}, $c_v$= {cv:.2f}')
     if get_values: return ence, rmv, rmse
     else: return ence
+
+class TemperatureScaling():
+    def __init__(self,beta=0.5) -> None:
+        self.beta = beta
+
+    def fit(self, preds, var, targets,
+            maxiter:Optional[int]=1000,
+            tol:Optional[float]=1e-6)->float:
+        self.res = optimize.minimize(
+            fun = self._loss, 
+            x0 = 1.0, 
+            args = (preds, var, targets),
+            method = 'L-BFGS-B',
+            jac = self._grad,
+            options = {'maxiter':maxiter},
+            tol = tol,
+            bounds=optimize.Bounds(lb=0,ub=np.inf)
+        )
+        self.s = self.res.x[0]
+        return self.s
+    
+    def _loss(self, s, *args):
+        preds, var, targets = args
+        T = len(preds)
+        return 0.5*np.log(s) + 1/T*np.sum((targets-preds)**2/(2*s*var)) # check
+    
+    def _grad(self, s, *args):
+        preds, var, targets = args
+        T = len(preds)
+        return 1/2/s - 1/T*np.sum((targets-preds)**2/(2*s**2*var))

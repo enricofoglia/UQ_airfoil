@@ -318,7 +318,7 @@ class ZigZag(EncodeProcessDecode):
             else:
                 y1, y_glob1 = self.forward(data)
                 y2, y_glob2 = self.forward(data, y=y1.detach())
-            return 0.5*(y1+y2), 0.5*(y_glob1+y_glob2), 0.5*(y1-y2)**2,  0.5*(y_glob1-y_glob2)**2
+            return 0.5*(y1+y2), 0.5*(y_glob1+y_glob2), 0.25*(y1-y2)**2,  0.25*(y_glob1-y_glob2)**2
         else:
             if self.kind == 'latent_zigzag':
                 y1, h = self.forward(data, return_hidden=True)
@@ -326,7 +326,7 @@ class ZigZag(EncodeProcessDecode):
             else:
                 y1 = self.forward(data)
                 y2 = self.forward(data, y=y1.detach())
-            return 0.5*(y1+y2), 0.5*(y1-y2)**2
+            return 0.5*(y1+y2), 0.25*(y1-y2)**2
 
 
 class Ensemble(nn.Module):

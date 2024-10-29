@@ -71,25 +71,25 @@ print(f'len dataset = {len(test_dataset)}')
 #             out_glob=1
 #             )
 
-model = ZigZag(
+# model = ZigZag(
+#             node_features=N+2+2+1,
+#             edge_features=3,
+#             hidden_features=64,
+#             n_blocks=6,
+#             out_nodes=1,
+#             out_glob=0,
+#             z0=-2.0, latent =False
+#             )
+
+model = Ensemble(
+            n_models=9,
             node_features=N+2+2+1,
             edge_features=3,
             hidden_features=64,
             n_blocks=6,
             out_nodes=1,
             out_glob=0,
-            z0=-2.0, latent =False
             )
-
-# model = Ensemble(
-#             n_models=5,
-#             node_features=3+n,
-#             edge_features=3,
-#             hidden_features=64,
-#             n_blocks=6,
-#             out_nodes=1,
-#             out_glob=1,
-#             )
 
 # model = MCDropout(
 #             node_features=3+n,
@@ -102,10 +102,10 @@ model = ZigZag(
 #             p=0.1
 #             )
 
-model.load_state_dict(torch.load('../../out/test_full_airfrans.pt',
-                                 map_location=torch.device('cpu')))
-# for n,single_model in enumerate(model):
-    # single_model.load_state_dict(torch.load(f'../out/ensemble/ensemble_{n}.pt'))
+# model.load_state_dict(torch.load('../../out/test_full_airfrans.pt',
+                                #  map_location=torch.device('cpu')))
+for n,single_model in enumerate(model):
+    single_model.load_state_dict(torch.load(f'../../out/ensemble/test_full_airfrans_{n}.pt', map_location=torch.device('cpu')))
 
 n_params = count_parameters(model)
 print( '+---------------------------------+')
@@ -124,7 +124,7 @@ indices = random.sample(range(len(test_dataset)),k=4,)
 print(f'| Selected indices {indices}')
 print( '+---------------------------------+')
 
-indices[0] = 22
+# indices[0] = 22
 
 for i, ind in enumerate(indices):
     row = i//2

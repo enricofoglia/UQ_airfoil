@@ -369,17 +369,28 @@ class Ensemble(nn.Module):
         '''
         y_list = []
         glob_list = []
-        for model in self.models_list:
-            y, glob = model(data)
-            y_list.append(y)
-            glob_list.append(glob)
-        y_mean = torch.stack(y_list,dim=-1).mean(dim=-1)
-        glob_mean = torch.stack(glob_list,dim=-1).mean(dim=-1)
-    
-        if return_var:
-            return y_mean, glob_mean, torch.stack(y_list,dim=-1).var(dim=-1), torch.stack(glob_list,dim=-1).var(dim=-1)
+        if hasattr(self.models_list[0], 'node2glob'):
+            for model in self.models_list:
+                y, glob = model(data)
+                y_list.append(y)
+                glob_list.append(glob)
+            y_mean = torch.stack(y_list,dim=-1).mean(dim=-1)
+            glob_mean = torch.stack(glob_list,dim=-1).mean(dim=-1)
+        
+            if return_var:
+                return y_mean, glob_mean, torch.stack(y_list,dim=-1).var(dim=-1), torch.stack(glob_list,dim=-1).var(dim=-1)
+            else:
+                return y_mean, glob_mean
         else:
-            return y_mean, glob_mean
+            for model in self.models_list:
+                y = model(data)
+                y_list.append(y)
+            y_mean = torch.stack(y_list,dim=-1).mean(dim=-1)
+        
+            if return_var:
+                return y_mean, torch.stack(y_list,dim=-1).var(dim=-1)
+            else:
+                return y_mean
         
     def __len__(self):
         return len(self.models_list)

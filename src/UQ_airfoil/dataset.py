@@ -640,7 +640,7 @@ def corner_plot(
             varnames = [ r'$U_\infty$ [ms$^{-1}$]', r'$\alpha\;[^\circ]$ ']
 
 
-        fig, axs = plt.subplots(2, 2, figsize=(10,10),layout='constrained')
+        fig, axs = plt.subplots(2, 2, figsize=(7,7),layout='constrained')
         for i in range(2):
             for j in range(2):
                 if i == j:

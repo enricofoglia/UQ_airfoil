@@ -59,6 +59,7 @@ train_dataset = AirfRANSDataset('full', True, root, normalize=True, pre_transfor
 train_glob = train_dataset.get_global()
 corner_plot(train_glob)
 plt.show()
+exit(0)
 mean = train_dataset.glob_mean
 std = train_dataset.glob_std
 test_dataset = AirfRANSDataset('scarce', False, root, normalize=(mean,std), pre_transform=pre_transform, force_reload=False)

@@ -26,6 +26,8 @@ from torch_geometric.transforms import Distance, BaseTransform
 import numpy as np
 from scipy.interpolate import CubicSpline
 
+import matplotlib.pyplot as plt
+
 import airfrans as af
 
 class GeometricData(Data):
@@ -441,14 +443,15 @@ class AirfRANSDataset(Dataset):
         return np.concatenate((suction_side[indices_suction],
                                 pressure_side[indices_pressure]))
 
-
-
-
     def _make_periodic(self, x):
         try:
             return torch.concatenate((x, x[0].unsqueeze(0)))
         except RuntimeError:
             return torch.concatenate((x, x[0]))
+        
+    def get_global(self):
+        glob_list = [self._process_name(file) for file in self.raw_file_names]
+        return torch.tensor(glob_list)
 
 class TangentVec(BaseTransform):
     r''' Add tangent vectors as edge features. If :obj:`norm=True`, normalize all lengths to 1.
@@ -620,7 +623,47 @@ class UniformSampling(BaseTransform):
     def __repr__(self) -> str:
         return f'{self.__class__.__name__}(n={self.n})'
 
-                
+def corner_plot(
+        global_data:torch.Tensor,
+        fig_dir:Optional[str]=None,
+        normalized:Optional[bool]=False
+        )->None:
+        '''Plot a corner plot of velocity and angle of attack.
+        Args:
+            global_data (tensor):  tensor of shape (N,2) where the first column is the velocity and the second the AoA
+            fig_dir (str, optional): where to save the figure (default: :obj:`None`)
+            normalized (bool, optional): wether the data is normalized (default :obj:`False`)
+        '''
+        if normalized:
+            varnames = [ r'$U_\infty$ [-]', r'$\alpha$ [-]']
+        else:
+            varnames = [ r'$U_\infty$ [ms$^{-1}$]', r'$\alpha\;[^\circ]$ ']
+
+
+        fig, axs = plt.subplots(2, 2, figsize=(10,10),layout='constrained')
+        for i in range(2):
+            for j in range(2):
+                if i == j:
+                    axs[i,j].hist(global_data[:,i], bins=15, color='skyblue', edgecolor='black',
+                                  histtype='stepfilled')
+
+                else:
+                    if j<i:
+                       pcm = axs[i,j].scatter(global_data[:,j], global_data[:,i], c='tab:blue' , alpha=0.7,s=5)
+                    else:
+                        axs[i,j].axis('off')
+                if i<1:
+                    axs[i,j].xaxis.set_visible(False)
+                if j > 0:
+                    axs[i, j].yaxis.set_visible(False)
+        for i in range(2):
+            axs[i,0].set_ylabel(varnames[i])
+            axs[-1,i].set_xlabel(varnames[i])
+        
+        if fig_dir is not None:
+            plt.savefig(os.path.join(fig_dir,'corner_plot.png'),bbox_inches='tight', dpi=300)
+
+
 if __name__ == '__main__':
 
     import matplotlib.pyplot as plt

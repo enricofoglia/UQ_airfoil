@@ -13,7 +13,7 @@ from torch_geometric.transforms import Distance
 import matplotlib.pyplot as plt
 from sklearn.metrics import r2_score
 
-from dataset import XFoilDataset, FourierEpicycles, TangentVec, UniformSampling, AirfRANSDataset
+from dataset import XFoilDataset, FourierEpicycles, TangentVec, UniformSampling, AirfRANSDataset, corner_plot
 from model import EncodeProcessDecode, ZigZag, Ensemble, MCDropout
 from utils import count_parameters, set_seed
 from metrics import auce_plot, ece_plot, TemperatureScaling
@@ -56,11 +56,19 @@ pre_transform = transforms.Compose((UniformSampling(n=n_points), FourierEpicycle
 root = '/home/daep/e.foglia/Documents/1A/05_uncertainty_quantification/data/AirfRANS' # local
 
 train_dataset = AirfRANSDataset('full', True, root, normalize=True, pre_transform=pre_transform, force_reload=False)
+train_glob = train_dataset.get_global()
+corner_plot(train_glob)
+plt.show()
 mean = train_dataset.glob_mean
 std = train_dataset.glob_std
 test_dataset = AirfRANSDataset('scarce', False, root, normalize=(mean,std), pre_transform=pre_transform, force_reload=False)
-
+test_glob = test_dataset.get_global()
+corner_plot(test_glob)
+plt.show()
 print(f'len dataset = {len(test_dataset)}')
+
+# plot corner plot dataset
+
 
 # model = EncodeProcessDecode(
 #             node_features=3+n,
@@ -78,34 +86,34 @@ print(f'len dataset = {len(test_dataset)}')
 #             n_blocks=6,
 #             out_nodes=1,
 #             out_glob=0,
-#             z0=-2.0, latent =False
+#             z0=-2.0, latent =True
 #             )
 
-model = Ensemble(
-            n_models=9,
+# model = Ensemble(
+#             n_models=9,
+#             node_features=N+2+2+1,
+#             edge_features=3,
+#             hidden_features=64,
+#             n_blocks=6,
+#             out_nodes=1,
+#             out_glob=0,
+#             )
+
+model = MCDropout(
             node_features=N+2+2+1,
             edge_features=3,
             hidden_features=64,
             n_blocks=6,
             out_nodes=1,
             out_glob=0,
+            dropout=True,
+            p=0.1
             )
 
-# model = MCDropout(
-#             node_features=3+n,
-#             edge_features=3,
-#             hidden_features=64,
-#             n_blocks=6,
-#             out_nodes=1,
-#             out_glob=1,
-#             dropout=True,
-#             p=0.1
-#             )
-
-# model.load_state_dict(torch.load('../../out/test_full_airfrans.pt',
-                                #  map_location=torch.device('cpu')))
-for n,single_model in enumerate(model):
-    single_model.load_state_dict(torch.load(f'../../out/ensemble/test_full_airfrans_{n}.pt', map_location=torch.device('cpu')))
+model.load_state_dict(torch.load('../../out/trained_models/dropout.pt',
+                                 map_location=torch.device('cpu')))
+# for n,single_model in enumerate(model):
+    # single_model.load_state_dict(torch.load(f'../../out/ensemble/test_full_airfrans_{n}.pt', map_location=torch.device('cpu')))
 
 n_params = count_parameters(model)
 print( '+---------------------------------+')

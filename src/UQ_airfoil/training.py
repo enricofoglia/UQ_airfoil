@@ -160,10 +160,10 @@ class Trainer():
             y_glob = batch.y_glob
             if 'latent' not in model.kind.split('_'):
                 pred1, pred_glob1 = model(batch)
-                feedback = pred1
+                feedback = y
             else:
                 pred1, pred_glob1, feedback = model(batch, return_hidden=True)
-            pred2, pred_glob2 = model(batch, feedback)
+            pred2, pred_glob2 = model(batch, feedback.detach())
             loss = 0.5*(self.loss_fn(pred1.squeeze(), y.squeeze()) 
                         + self.weight*self.loss_fn(pred_glob1.squeeze(), y_glob.squeeze())
                         + self.loss_fn(pred2.squeeze(), y.squeeze()) 
@@ -171,10 +171,10 @@ class Trainer():
         else:
             if 'latent' not in model.kind.split('_'):
                 pred1 = model(batch)
-                feedback = pred1
+                feedback = y
             else:
                 pred1, feedback = model(batch, return_hidden=True)
-            pred2 = model(batch, feedback)
+            pred2 = model(batch, feedback.detach())
             loss = 0.5*(self.loss_fn(pred1.squeeze(), y.squeeze()) 
                         + self.loss_fn(pred2.squeeze(), y.squeeze()))
             

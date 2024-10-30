@@ -1,12 +1,13 @@
 import os
 import argparse
 
+import time
+
 import torch 
 from torch.optim import Adam
 from torch.nn import MSELoss
 from torch.optim.lr_scheduler import ExponentialLR
 
-from torch_geometric.nn.aggr import SoftmaxAggregation
 from torch_geometric.loader import DataLoader
 
 from torch_geometric.transforms import Distance
@@ -22,31 +23,21 @@ from utils import set_seed, Parser
 parser = Parser(print=True)
 args = parser.args
 # set seed for reproducibility
-set_seed(42)
+# set_seed(42)
 
 # debug: track down anomaly
 # torch.autograd.set_detect_anomaly(True)
-# n = 20
-# pre_transform = FourierEpicycles(n=n, cat=False)
-
-# root = '/home/daep/e.foglia/Documents/1A/05_uncertainty_quantification/data/airfoils/train_shapes'
-# dataset = XFoilDataset(root, normalize=True, pre_transform=pre_transform,
-#                        force_reload=True)
 
 N = args.fourier
 n_points = 250
 pre_transform = transforms.Compose((UniformSampling(n=n_points), FourierEpicycles(n=N), TangentVec(), Distance()))
 
-root = '/home/daep/e.foglia/Documents/1A/05_uncertainty_quantification/data/AirfRANS' # local
-# root = '/home/daep/e.foglia/Documents/02_UQ/01_airfrans/01_data/' # pando
+# root = '/home/daep/e.foglia/Documents/1A/05_uncertainty_quantification/data/AirfRANS' # local
+root = '/home/daep/e.foglia/Documents/02_UQ/01_airfrans/01_data/' # pando
 train_dataset = AirfRANSDataset('full',train=True, root=root, normalize=True, pre_transform=pre_transform, force_reload=False)
 mean = train_dataset.glob_mean
 std = train_dataset.glob_std
 test_dataset = AirfRANSDataset('full',train=False, root=root, normalize=(mean, std), pre_transform=pre_transform, force_reload=False)
-# random train-test split
-# train_idx, test_idx = train_test_split(range(len(dataset)), test_size=0.2, random_state=42)
-# train_set = dataset[train_idx]
-# test_set = dataset[test_idx]
 
 n_samples = args.samples
 
@@ -76,29 +67,29 @@ model = ZigZag(
             n_blocks=6,
             out_nodes=1,
             out_glob=0,
-            z0=-2.0, latent=False
+            z0=-1.0, latent=True
             ).to(device)
 
 # model = Ensemble(
 #             n_models=5,
-#             node_features=3+n,
+#             node_features=n,
 #             edge_features=3,
-#             hidden_features=64,
+#             hidden_features=args.hidden,
 #             n_blocks=6,
 #             out_nodes=1,
-#             out_glob=1,
-#             )
+#             out_glob=0,
+#             ).to(device)
 
 # model = MCDropout(
-#             node_features=3+n,
+#             node_features=n,
 #             edge_features=3,
-#             hidden_features=64,
+#             hidden_features=args.hidden,
 #             n_blocks=6,
 #             out_nodes=1,
-#             out_glob=1,
+#             out_glob=0,
 #             dropout=True,
 #             p=0.1
-#             )
+#             ).to(device)
 # loss = MSELoss()
 loss = lambda y, pred: torch.mean((y-pred)**2)
 
@@ -128,9 +119,18 @@ trainer = Trainer(
 #     scheduler_kwargs={'gamma':gamma}
 # )
 
-# out_dir = '/home/daep/e.foglia/Documents/02_UQ/01_airfrans/03_results' # pando
-out_dir = '/home/daep/e.foglia/Documents/1A/05_uncertainty_quantification/scripts/paper/UQ_airfoil/out'
-trainer.fit(train_loader, test_loader, os.path.join(out_dir,'trained_models/test_full_airfrans.pt'))
+out_dir = '/home/daep/e.foglia/Documents/02_UQ/01_airfrans/03_results' # pando
+# out_dir = '/home/daep/e.foglia/Documents/1A/05_uncertainty_quantification/scripts/paper/UQ_airfoil/out'
+
+tic = time.time()
+trainer.fit(train_loader, test_loader, os.path.join(out_dir,'trained_models/zigzag200.pt'))
+toc = time.time()
+
+formatted_time = time.strftime("%H:%M:%S", time.gmtime(toc-tic))
+print( '----------------------------')
+print(f' Elapsed time | {formatted_time}')
+print( '----------------------------')
+
 # torch.save(train_idx, os.path.join(out_dir,'train_idx.pt'))
 # torch.save(test_idx, os.path.join(out_dir,'test_idx.pt'))
 
@@ -142,11 +142,11 @@ ax.legend()
 ax.set_xlabel('epoch')
 ax.set_ylabel(r'loss $\mathcal{L}(\theta)$')
 ax.set_title('Training history')
-plt.savefig(os.path.join(out_dir,'training_history.png'), dpi=300)
+plt.savefig(os.path.join(out_dir,'training_history_zigzag.png'), dpi=300)
 
 fig, ax = plt.subplots()
 ax.semilogy(trainer.lr_history)
 ax.set_xlabel('epoch')
 ax.set_ylabel('learning rate $l_r$')
 ax.set_title('Learing rate history')
-plt.savefig(os.path.join(out_dir,'lr_history.png'), dpi=300)
+plt.savefig(os.path.join(out_dir,'lr_history_zigzag.png'), dpi=300)

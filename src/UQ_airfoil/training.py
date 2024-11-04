@@ -160,7 +160,7 @@ class Trainer():
             y_glob = batch.y_glob
             if 'latent' not in model.kind.split('_'):
                 pred1, pred_glob1 = model(batch)
-                feedback = y
+                feedback = y.unsqueeze(1)
             else:
                 pred1, pred_glob1, feedback = model(batch, return_hidden=True)
             pred2, pred_glob2 = model(batch, feedback.detach())
@@ -171,7 +171,7 @@ class Trainer():
         else:
             if 'latent' not in model.kind.split('_'):
                 pred1 = model(batch)
-                feedback = y
+                feedback = y.unsqueeze(1)
             else:
                 pred1, feedback = model(batch, return_hidden=True)
             pred2 = model(batch, feedback.detach())

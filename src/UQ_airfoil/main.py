@@ -18,7 +18,7 @@ from sklearn.model_selection import train_test_split
 from dataset import UniformSampling, FourierEpicycles, TangentVec, AirfRANSDataset, XFoilDataset
 from model import EncodeProcessDecode, ZigZag, Ensemble, MCDropout
 from training import Trainer, EnsembleTrainer
-from utils import set_seed, Parser
+from utils import set_seed, Parser, ModelFactory
 
 parser = Parser(print=True)
 args = parser.args
@@ -32,8 +32,8 @@ N = args.fourier
 n_points = 250
 pre_transform = transforms.Compose((UniformSampling(n=n_points), FourierEpicycles(n=N), TangentVec(), Distance()))
 
-# root = '/home/daep/e.foglia/Documents/1A/05_uncertainty_quantification/data/AirfRANS' # local
-root = '/home/daep/e.foglia/Documents/02_UQ/01_airfrans/01_data/' # pando
+root = '/home/daep/e.foglia/Documents/1A/05_uncertainty_quantification/data/AirfRANS' # local
+# root = '/home/daep/e.foglia/Documents/02_UQ/01_airfrans/01_data/' # pando
 train_dataset = AirfRANSDataset('full',train=True, root=root, normalize=True, pre_transform=pre_transform, force_reload=False)
 mean = train_dataset.glob_mean
 std = train_dataset.glob_std
@@ -60,15 +60,17 @@ print( '----------------------------')
 print(f' Available device: {device}')
 print( '----------------------------')
 
-model = ZigZag(
-            node_features=n,
-            edge_features=3,
-            hidden_features=args.hidden,
-            n_blocks=6,
-            out_nodes=1,
-            out_glob=0,
-            z0=-1.0, latent=True
-            ).to(device)
+model = ModelFactory.create(args)
+
+# model = ZigZag(
+#             node_features=n,
+#             edge_features=3,
+#             hidden_features=args.hidden,
+#             n_blocks=6,
+#             out_nodes=1,
+#             out_glob=0,
+#             z0=-1.0, latent=True
+#             ).to(device)
 
 # model = Ensemble(
 #             n_models=5,
@@ -98,32 +100,38 @@ final_lr = 1e-4
 epochs = args.epochs
 gamma = (final_lr/initial_lr)**(1/epochs)
 
-trainer = Trainer(
-    epochs=epochs,
-    model=model,
-    optimizer=Adam,
-    optim_kwargs={'lr':initial_lr},
-    loss_fn=loss,
-    scheduler=ExponentialLR,
-    scheduler_kwargs={'gamma':gamma},
-    device=device
-)
+if args.model_type ==  'ensemble':
+    trainer = EnsembleTrainer(
+        epochs=epochs,
+        ensemble=model,
+        optimizer='adam',
+        optim_kwargs={'lr':initial_lr},
+        loss_fn=loss,
+        scheduler='exponential',
+        scheduler_kwargs={'gamma':gamma}
+    )
 
-# trainer = EnsembleTrainer(
-#     epochs=epochs,
-#     ensemble=model,
-#     optimizer='adam',
-#     optim_kwargs={'lr':initial_lr},
-#     loss_fn=loss,
-#     scheduler='exponential',
-#     scheduler_kwargs={'gamma':gamma}
-# )
+else:
+    trainer = Trainer(
+        epochs=epochs,
+        model=model,
+        optimizer=Adam,
+        optim_kwargs={'lr':initial_lr},
+        loss_fn=loss,
+        scheduler=ExponentialLR,
+        scheduler_kwargs={'gamma':gamma},
+        device=device
+    )
 
-out_dir = '/home/daep/e.foglia/Documents/02_UQ/01_airfrans/03_results' # pando
-# out_dir = '/home/daep/e.foglia/Documents/1A/05_uncertainty_quantification/scripts/paper/UQ_airfoil/out'
+
+# out_dir = '/home/daep/e.foglia/Documents/02_UQ/01_airfrans/03_results' # pando
+out_dir = '/home/daep/e.foglia/Documents/1A/05_uncertainty_quantification/scripts/paper/UQ_airfoil/out'
+
+model_name = f"{args.identifier}_{args.model_type}_{args.epochs}_{args.samples}_{args.hidden}_{args.fourier}_{args.batch}"
+
 
 tic = time.time()
-trainer.fit(train_loader, test_loader, os.path.join(out_dir,'trained_models/zigzag200.pt'))
+trainer.fit(train_loader, test_loader, os.path.join(out_dir,'trained_models',f'{model_name}.pt'))
 toc = time.time()
 
 formatted_time = time.strftime("%H:%M:%S", time.gmtime(toc-tic))
@@ -142,11 +150,11 @@ ax.legend()
 ax.set_xlabel('epoch')
 ax.set_ylabel(r'loss $\mathcal{L}(\theta)$')
 ax.set_title('Training history')
-plt.savefig(os.path.join(out_dir,'training_history_zigzag.png'), dpi=300)
+plt.savefig(os.path.join(out_dir,f'training_history_{model_name}.png'), dpi=300)
 
 fig, ax = plt.subplots()
 ax.semilogy(trainer.lr_history)
 ax.set_xlabel('epoch')
 ax.set_ylabel('learning rate $l_r$')
 ax.set_title('Learing rate history')
-plt.savefig(os.path.join(out_dir,'lr_history_zigzag.png'), dpi=300)
+plt.savefig(os.path.join(out_dir,f'lr_history_{model_name}.png'), dpi=300)

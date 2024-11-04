@@ -58,14 +58,13 @@ root = '/home/daep/e.foglia/Documents/1A/05_uncertainty_quantification/data/Airf
 train_dataset = AirfRANSDataset('full', True, root, normalize=True, pre_transform=pre_transform, force_reload=False)
 train_glob = train_dataset.get_global()
 corner_plot(train_glob)
-plt.show()
-exit(0)
+
 mean = train_dataset.glob_mean
 std = train_dataset.glob_std
 test_dataset = AirfRANSDataset('scarce', False, root, normalize=(mean,std), pre_transform=pre_transform, force_reload=False)
 test_glob = test_dataset.get_global()
 corner_plot(test_glob)
-plt.show()
+
 print(f'len dataset = {len(test_dataset)}')
 
 # plot corner plot dataset
@@ -80,15 +79,15 @@ print(f'len dataset = {len(test_dataset)}')
 #             out_glob=1
 #             )
 
-# model = ZigZag(
-#             node_features=N+2+2+1,
-#             edge_features=3,
-#             hidden_features=64,
-#             n_blocks=6,
-#             out_nodes=1,
-#             out_glob=0,
-#             z0=-2.0, latent =True
-#             )
+model = ZigZag(
+            node_features=N+2+2+1,
+            edge_features=3,
+            hidden_features=64,
+            n_blocks=6,
+            out_nodes=1,
+            out_glob=0,
+            z0=-1.0, latent =True
+            )
 
 # model = Ensemble(
 #             n_models=9,
@@ -100,18 +99,18 @@ print(f'len dataset = {len(test_dataset)}')
 #             out_glob=0,
 #             )
 
-model = MCDropout(
-            node_features=N+2+2+1,
-            edge_features=3,
-            hidden_features=64,
-            n_blocks=6,
-            out_nodes=1,
-            out_glob=0,
-            dropout=True,
-            p=0.1
-            )
+# model = MCDropout(
+#             node_features=N+2+2+1,
+#             edge_features=3,
+#             hidden_features=64,
+#             n_blocks=6,
+#             out_nodes=1,
+#             out_glob=0,
+#             dropout=True,
+#             p=0.1
+#             )
 
-model.load_state_dict(torch.load('../../out/trained_models/dropout.pt',
+model.load_state_dict(torch.load('../../out/trained_models/zigzag200.pt',
                                  map_location=torch.device('cpu')))
 # for n,single_model in enumerate(model):
     # single_model.load_state_dict(torch.load(f'../../out/ensemble/test_full_airfrans_{n}.pt', map_location=torch.device('cpu')))

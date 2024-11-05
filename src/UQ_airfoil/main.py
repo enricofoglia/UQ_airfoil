@@ -32,12 +32,12 @@ N = args.fourier
 n_points = 250
 pre_transform = transforms.Compose((UniformSampling(n=n_points), FourierEpicycles(n=N), TangentVec(), Distance()))
 
-root = '/home/daep/e.foglia/Documents/1A/05_uncertainty_quantification/data/AirfRANS' # local
-# root = '/home/daep/e.foglia/Documents/02_UQ/01_airfrans/01_data/' # pando
-train_dataset = AirfRANSDataset('full',train=True, root=root, normalize=True, pre_transform=pre_transform, force_reload=False)
+# root = '/home/daep/e.foglia/Documents/1A/05_uncertainty_quantification/data/AirfRANS' # local
+root = '/home/daep/e.foglia/Documents/02_UQ/01_airfrans/01_data/' # pando
+train_dataset = AirfRANSDataset('full',train=True, root=root, normalize=True, pre_transform=pre_transform, force_reload=True)
 mean = train_dataset.glob_mean
 std = train_dataset.glob_std
-test_dataset = AirfRANSDataset('full',train=False, root=root, normalize=(mean, std), pre_transform=pre_transform, force_reload=False)
+test_dataset = AirfRANSDataset('full',train=False, root=root, normalize=(mean, std), pre_transform=pre_transform, force_reload=True)
 
 n_samples = args.samples
 
@@ -60,7 +60,7 @@ print( '----------------------------')
 print(f' Available device: {device}')
 print( '----------------------------')
 
-model = ModelFactory.create(args)
+model = ModelFactory.create(args).to(device)
 
 # model = ZigZag(
 #             node_features=n,
@@ -124,8 +124,8 @@ else:
     )
 
 
-# out_dir = '/home/daep/e.foglia/Documents/02_UQ/01_airfrans/03_results' # pando
-out_dir = '/home/daep/e.foglia/Documents/1A/05_uncertainty_quantification/scripts/paper/UQ_airfoil/out'
+out_dir = '/home/daep/e.foglia/Documents/02_UQ/01_airfrans/03_results' # pando
+# out_dir = '/home/daep/e.foglia/Documents/1A/05_uncertainty_quantification/scripts/paper/UQ_airfoil/out'
 
 model_name = f"{args.identifier}_{args.model_type}_{args.epochs}_{args.samples}_{args.hidden}_{args.fourier}_{args.batch}"
 

@@ -30,19 +30,23 @@ class Parser:
         self.parser.add_argument('--hidden', '-i', type=int, default=64, help='number of hidden units')
         self.parser.add_argument('--fourier', '-f', type=int, default=25, help='number of Fourier modes')
         self.parser.add_argument('--batch', '-b', type=int, default=16, help='batch size')
-        self.parser.add_argument('--model_type', type=str, default='zigzag', help='which type of model to train', choices=['zigzag', 'latent_zigzag', 'ensembles', 'dropout'])
+        self.parser.add_argument('--model_type', type=str, default='zigzag', help='which type of model to train', choices=['zigzag', 'latent_zigzag', 'ensemble', 'dropout'])
         self.parser.add_argument('--ens_size', '-n', type=int, default=5, help='number of particles in ensemble')
         self.parser.add_argument('--z0', type=float, help='uninformative value for zigzag', default=-1.0)
         self.parser.add_argument('--drop_prob', '-p', type=float, default=0.1, help='dropout probability')
+        self.parser.add_argument('--identifier', '-d', type=str, default='model', help='identifier to distinguish the model')
 
         self.args = self.parser.parse_args()
         if print: self.message()
 
     def message(self):
         print( '+----------------------------+')
+        print(f'| {self.args.identifier:>26} |')
+        print( '+----------------------------+')
         print( '| Parsed args   | value      |')
+        
         print( '+---------------+------------+')
-        print(f'| Model type    | {self.args.model_type:>10}')
+        print(f'| Model type    | {self.args.model_type:>10} |')
         print( '+---------------+------------+')
         print(f'| Epochs        | {self.args.epochs:>10d} |')
         print(f'| Samples       | {self.args.samples:>10d} |')
@@ -56,15 +60,15 @@ class Parser:
         elif 'zigzag' in self.args.model_type.split('_'):
             print(f'| z0            | {self.args.z0:>10.2f} |')
             if 'latent' in self.args.model_type.split('_'):
-                print(f'| Latent        | {'True':>10} |')
+                print(f'| Latent        |       True |')
             else:
-                print(f'| Latent        | {'False':>10} |')
+                print(f'| Latent        |      False |')
         print( '+----------------------------+')
 
 class ModelFactory:
-
+    
     @staticmethod
-    def create(self, args:dict):
+    def create(args):
         models = {
             'ensemble': Ensemble,
             'zigzag': ZigZag,
@@ -76,34 +80,32 @@ class ModelFactory:
         if model_class is None:
             raise ValueError(f"Model type '{args.model_type}' not found. Available types: {list(models.keys())}")
         
-        return model_class(**self._model_parameters(args))
+        model_params = ModelFactory._model_parameters(args)  # Call static method directly
+        return model_class(**model_params)
     
-    @property
-    def _model_parameters(self, args:dict=None)->dict:
-        if args == None:
-            return self.model_dict
+    @staticmethod
+    def _model_parameters(args) -> dict:
+        model_dict = {
+            'edge_features': 3,
+            'n_blocks': 6,
+            'out_nodes': 1,
+            'out_glob': 0
+        }
         
-        # fixed parameters
-        self.model_dict = {'edge_features': 3,
-                           'n_blocks': 6,
-                           'out_nodes': 1,
-                           'out_glob': 0}
-        # common parsed parameters
-        self.model_dict['node_features'] = args.fourier+5
-        self.model_dict['hidden_features'] =  args.hidden
+        # Common parsed parameters
+        model_dict['node_features'] = args.fourier + 5
+        model_dict['hidden_features'] = args.hidden
 
-        # type-specific parsed arguments
-        if args.model_type == 'ensembles':
-            self.model_dict['n_models'] = args.ens_size
+        # Type-specific parsed arguments
+        if args.model_type == 'ensemble':
+            model_dict['n_models'] = args.ens_size
         elif args.model_type == 'dropout':
-            self.model_dict['p'] = args.drop_prob
-        elif 'zigzag' in args.model_type.split('_'):
-            self.model_dict['z0'] = args.z0
-            if 'latent' in args.model_type.split('_'):
-                self.model_dict['latent'] = True
-            else:
-                self.model_dict['latent'] = False 
+            model_dict['p'] = args.drop_prob
+        elif 'zigzag' in args.model_type:
+            model_dict['z0'] = args.z0
+            model_dict['latent'] = 'latent' in args.model_type
 
-        return self.model_dict
+        return model_dict
+
     
    

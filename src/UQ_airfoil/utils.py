@@ -6,7 +6,7 @@ import numpy as np
 
 import torch
 
-from model import ZigZag, Ensemble, MCDropout
+from model import ZigZag, Ensemble, MCDropout, EncodeProcessDecode
 
 
 def count_parameters(model):
@@ -30,7 +30,7 @@ class Parser:
         self.parser.add_argument('--hidden', '-i', type=int, default=64, help='number of hidden units')
         self.parser.add_argument('--fourier', '-f', type=int, default=25, help='number of Fourier modes')
         self.parser.add_argument('--batch', '-b', type=int, default=16, help='batch size')
-        self.parser.add_argument('--model_type', type=str, default='zigzag', help='which type of model to train', choices=['zigzag', 'latent_zigzag', 'ensemble', 'dropout'])
+        self.parser.add_argument('--model_type', type=str, default='zigzag', help='which type of model to train', choices=['zigzag', 'latent_zigzag', 'ensemble', 'dropout', 'simple'])
         self.parser.add_argument('--ens_size', '-n', type=int, default=5, help='number of particles in ensemble')
         self.parser.add_argument('--z0', type=float, help='uninformative value for zigzag', default=-1.0)
         self.parser.add_argument('--drop_prob', '-p', type=float, default=0.1, help='dropout probability')
@@ -73,7 +73,8 @@ class ModelFactory:
             'ensemble': Ensemble,
             'zigzag': ZigZag,
             'latent_zigzag': ZigZag,
-            'dropout': MCDropout
+            'dropout': MCDropout,
+            'simple': EncodeProcessDecode
         }
         
         model_class = models.get(args.model_type)

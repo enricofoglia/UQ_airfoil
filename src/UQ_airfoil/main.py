@@ -17,7 +17,7 @@ from sklearn.model_selection import train_test_split
 
 from dataset import UniformSampling, FourierEpicycles, TangentVec, AirfRANSDataset, XFoilDataset
 from model import EncodeProcessDecode, ZigZag, Ensemble, MCDropout
-from training import Trainer, EnsembleTrainer
+from training import Trainer, EnsembleTrainer, SGLD, PowerDecayLR
 from utils import set_seed, Parser, ModelFactory
 
 parser = Parser(print=True)
@@ -32,12 +32,12 @@ N = args.fourier
 n_points = 250
 pre_transform = transforms.Compose((UniformSampling(n=n_points), FourierEpicycles(n=N), TangentVec(), Distance()))
 
-# root = '/home/daep/e.foglia/Documents/1A/05_uncertainty_quantification/data/AirfRANS' # local
-root = '/home/daep/e.foglia/Documents/02_UQ/01_airfrans/01_data/' # pando
-train_dataset = AirfRANSDataset('full',train=True, root=root, normalize=True, pre_transform=pre_transform, force_reload=True)
+root = '/home/daep/e.foglia/Documents/1A/05_uncertainty_quantification/data/AirfRANS' # local
+# root = '/home/daep/e.foglia/Documents/02_UQ/01_airfrans/01_data/' # pando
+train_dataset = AirfRANSDataset('full',train=True, root=root, normalize=True, pre_transform=pre_transform, force_reload=False)
 mean = train_dataset.glob_mean
 std = train_dataset.glob_std
-test_dataset = AirfRANSDataset('full',train=False, root=root, normalize=(mean, std), pre_transform=pre_transform, force_reload=True)
+test_dataset = AirfRANSDataset('full',train=False, root=root, normalize=(mean, std), pre_transform=pre_transform, force_reload=False)
 
 n_samples = args.samples
 
@@ -93,7 +93,7 @@ model = ModelFactory.create(args).to(device)
 #             p=0.1
 #             ).to(device)
 # loss = MSELoss()
-loss = lambda y, pred: torch.mean((y-pred)**2)
+loss = lambda y, pred: n_samples*torch.mean((y-pred)**2) # !!!
 
 initial_lr = 5e-3
 final_lr = 1e-4
@@ -108,24 +108,30 @@ if args.model_type ==  'ensemble':
         optim_kwargs={'lr':initial_lr},
         loss_fn=loss,
         scheduler='exponential',
-        scheduler_kwargs={'gamma':gamma}
+        scheduler_kwargs={'gamma':1/2,
+                          'a':1e-5, 'b':1}
     )
 
 else:
     trainer = Trainer(
         epochs=epochs,
         model=model,
-        optimizer=Adam,
-        optim_kwargs={'lr':initial_lr},
+        optimizer=SGLD,
+        optim_kwargs={'lr':initial_lr,
+                      'weight_decay': 1.0},
         loss_fn=loss,
-        scheduler=ExponentialLR,
-        scheduler_kwargs={'gamma':gamma},
-        device=device
+        scheduler=PowerDecayLR,
+        scheduler_kwargs={'gamma':1/2,
+                          'a':1e-5, 'b':1},
+        device=device,
+        mcmc=True,
+        save_start=3,
+        save_rate=1
     )
 
 
-out_dir = '/home/daep/e.foglia/Documents/02_UQ/01_airfrans/03_results' # pando
-# out_dir = '/home/daep/e.foglia/Documents/1A/05_uncertainty_quantification/scripts/paper/UQ_airfoil/out'
+# out_dir = '/home/daep/e.foglia/Documents/02_UQ/01_airfrans/03_results' # pando
+out_dir = '/home/daep/e.foglia/Documents/1A/05_uncertainty_quantification/scripts/paper/UQ_airfoil/out'
 
 model_name = f"{args.identifier}_{args.model_type}_{args.epochs}_{args.samples}_{args.hidden}_{args.fourier}_{args.batch}"
 

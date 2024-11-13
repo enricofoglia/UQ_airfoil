@@ -12,6 +12,8 @@ To do:
 import os
 import copy
 
+from pathlib import Path
+
 from typing import (
     Optional,
     Callable,
@@ -29,6 +31,8 @@ from torch.optim.lr_scheduler import (
     )
  
 from torch.nn import MSELoss, Module
+from torch.optim.optimizer import Optimizer, required
+from torch.optim.lr_scheduler import _LRScheduler
 
 from torch_geometric.loader import DataLoader
 
@@ -55,7 +59,9 @@ class Trainer():
             the scheduler (default, :obj:`None`)
         weight (float, optional): ratio between the loss of the global and
             the node level loss (default :obj:`0.01`)
-        
+        mcmc (bool, optional): save weights during optimization (default :obj:`False`)
+        save_rate (int, optional): save weigths every :obj:`save_rate` epochs (default :obj:`1`)
+        save_start (int, optional): start saving from :obj:`save_start` epoch (defcault :obj:`0`)
     '''
     def __init__(
             self,
@@ -67,7 +73,10 @@ class Trainer():
             scheduler:Optional[LRScheduler]=None,
             optim_kwargs:Optional[Dict[str,Any]]=None,
             scheduler_kwargs:Optional[Dict[str,Any]]=None,
-            weight:Optional[float]=0.01
+            weight:Optional[float]=0.01,
+            mcmc:Optional[bool]=False,
+            save_rate:Optional[int]=1,
+            save_start:Optional[int]=0
             ) -> None:
         
         self.epochs = epochs
@@ -92,6 +101,9 @@ class Trainer():
             self.scheduler = None
 
         self.weight = weight
+        self.mcmc = mcmc 
+        self.save_start = save_start
+        self.save_rate = save_rate
 
     def fit(self, train_loader:DataLoader, test_loader:DataLoader, 
             savefile:Optional[str]='out/best_model.pt')-> None:
@@ -108,6 +120,8 @@ class Trainer():
         self.test_history = []
         self.best_loss = torch.inf
         self.lr_history = []
+
+        save_path = Path(savefile)
         for epoch in tqdm(range(self.epochs)):
             self.model.train()
             self.training_history.append(self._train_epoch(train_loader, self.model))
@@ -117,12 +131,21 @@ class Trainer():
             if self.scheduler is not None:
                 self.scheduler.step()
 
-            self.lr_history.append(self.optimizer.param_groups[0]['lr'])
-
             if self.test_history[-1] < self.best_loss:
                 self.best_loss = self.test_history[-1]
-                torch.save(self.model.state_dict(), savefile)
-            
+                torch.save(self.model.state_dict(), save_path)
+
+            if self.mcmc:
+                if epoch >= self.save_start and epoch%self.save_rate == 0:
+                    sgld_path = save_path.with_name(save_path.stem 
+                                                    + f'SGLD_{(epoch-self.save_start)//self.save_rate}'
+                                                    + save_path.suffix)
+                    torch.save(self.model.state_dict(), sgld_path)
+                    self.lr_history.append(self.optimizer.param_groups[0]['lr'])
+
+                    
+        if self.mcmc:
+            torch.save(torch.tensor(self.lr_history), 'learning_rate_SGLD.pt')
 
         print( '| Training ended                   |')
         print( '+----------------------------------+')
@@ -376,3 +399,116 @@ class EnsembleTrainer(Trainer):
         torch.save(model.state_dict(), filename)
 
 
+class SGLD(Optimizer):
+    """Implements SGLD algorithm based on
+        https://www.ics.uci.edu/~welling/publications/papers/stoclangevin_v6.pdf
+
+    Built on the PyTorch SGD implementation
+    (https://github.com/pytorch/pytorch/blob/v1.4.0/torch/optim/sgd.py)
+
+    copied from:
+    https://github.com/alisiahkoohi/Langevin-dynamics/blob/master/src/langevin_sampling/SGLD.py
+    """
+
+    def __init__(self,
+                 params,
+                 lr=required,
+                 momentum=0,
+                 dampening=0,
+                 weight_decay=0,
+                 nesterov=False):
+        if lr is not required and lr < 0.0:
+            raise ValueError("Invalid learning rate: {}".format(lr))
+        if momentum < 0.0:
+            raise ValueError("Invalid momentum value: {}".format(momentum))
+        if weight_decay < 0.0:
+            raise ValueError(
+                "Invalid weight_decay value: {}".format(weight_decay))
+
+        defaults = dict(lr=lr,
+                        momentum=momentum,
+                        dampening=dampening,
+                        weight_decay=weight_decay,
+                        nesterov=nesterov)
+        if nesterov and (momentum <= 0 or dampening != 0):
+            raise ValueError(
+                "Nesterov momentum requires a momentum and zero dampening")
+        super(SGLD, self).__init__(params, defaults)
+
+    def __setstate__(self, state):
+        super(SGLD, self).__setstate__(state)
+        for group in self.param_groups:
+            group.setdefault('nesterov', False)
+
+    def step(self, closure=None):
+        """Performs a single optimization step.
+        Arguments:
+            closure (callable, optional): A closure that reevaluates the model
+                and returns the loss.
+        """
+        loss = None
+        if closure is not None:
+            loss = closure()
+
+        for group in self.param_groups:
+            weight_decay = group['weight_decay']
+            momentum = group['momentum']
+            dampening = group['dampening']
+            nesterov = group['nesterov']
+
+            for p in group['params']:
+                if p.grad is None:
+                    continue
+                d_p = p.grad.data
+                if weight_decay != 0:
+                    d_p.add_(p.data, alpha=weight_decay)
+                if momentum != 0:
+                    param_state = self.state[p]
+                    if 'momentum_buffer' not in param_state:
+                        buf = param_state['momentum_buffer'] = torch.clone(
+                            d_p).detach()
+                    else:
+                        buf = param_state['momentum_buffer']
+                        buf.mul_(momentum).add_(d_p, alpha=1 - dampening)
+                    if nesterov:
+                        d_p = d_p.add(momentum, buf)
+                    else:
+                        d_p = buf
+
+                p.data.add_(d_p, alpha=-group['lr'])
+                noise_std = torch.tensor([2 * group['lr']])
+                noise_std = noise_std.sqrt()
+                noise = p.data.new(p.data.size()).normal_(mean=0,
+                                                          std=1) * noise_std
+                p.data.add_(noise)
+
+        return 1.0
+    
+class PowerDecayLR(_LRScheduler):
+    """
+    Custom learning rate scheduler that implements the formula:
+    lr = a * (b + epoch)^(-gamma)
+    
+    Args:
+        optimizer: Wrapped optimizer
+        a (float): Scale factor
+        b (float): Offset factor
+        gamma (float): Power decay factor
+        last_epoch (int): The index of last epoch. Default: -1
+    """
+    def __init__(self,
+                 optimizer:Optimizer,
+                 a:float,
+                 b:float,
+                 gamma:float,
+                 last_epoch:Optional[int]=-1):
+        self.a = a
+        self.b = b
+        self.gamma = gamma
+        super(PowerDecayLR, self).__init__(optimizer, last_epoch)
+    
+    def get_lr(self):
+        # Calculate the new learning rate using the formula
+        factor = self.a * pow(self.b + self.last_epoch, -self.gamma)
+        # Apply the factor to all parameter groups
+        return [factor for base_lr in self.base_lrs]

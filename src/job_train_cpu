@@ -1,0 +1,45 @@
+#!/bin/bash
+#SBATCH --nodes=1                   #### Nb de noeuds
+#SBATCH --time=12:00:00             #### temps demandé maximum 
+#SBATCH --begin=now                 #### calcul commmence au plus tot 
+#SBATCH --mail-user=enrico.foglia@isae-supaero.fr #### votre mail
+#SBATCH --mail-type=START,FAIL,END        #### mail quand c'est fini ou erreur
+#SBATCH --job-name=dropout            #### le nom de votre calcul
+#SBATCH -o /scratch/daep/e.foglia/logs/%j.out   #### sortie standard STDOUT
+#SBATCH -e /scratch/daep/e.foglia/logs/%j.err   #### sortie erreur STDERR
+#SBATCH --gres-flags=enforce-binding
+#SBATCH --cpus-per-task=1
+#SBATCH --tasks=1
+
+
+########## MODULES ##########
+
+module load cuda/11.8
+module load python
+source activate airfrans
+export {http,https,ftp,all}_proxy="http://proxy.isae.fr:3128"
+
+nprocs=$SLURM_NTASKS
+nnodes=$SLURM_NNODES
+njobcpunode=$SLURM_JOB_CPUS_PER_NODE
+
+echo "NofNodes $nnodes NofTaskPerCpu $njobcpunode NofCpus $nprocs"
+#ldd ${FINE_BIN}
+cd UQ_airfoil
+
+epochs=200
+samples=800
+hidden=64
+fourier=25
+batch=16
+model_type="simple"
+z0=5.0
+p=0.1
+identifier="SGLD"
+
+log_file="${identifier}_${model_type}_${epochs}_${samples}_${hidden}_${fourier}_${batch}.logs"
+
+echo $log_file
+python main.py -e $epochs -s $samples -i $hidden -f $fourier -b $batch -p $p --z0 $z0 --model_type $model_type --identifier $identifier > $log_file 2>&1
+
+mv $log_file /home/daep/e.foglia/Documents/02_UQ/01_airfrans/03_results/logs

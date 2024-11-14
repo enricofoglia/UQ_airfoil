@@ -433,6 +433,14 @@ class SGLD(Optimizer):
         if nesterov and (momentum <= 0 or dampening != 0):
             raise ValueError(
                 "Nesterov momentum requires a momentum and zero dampening")
+        
+        first_param = next(iter(params), None)
+        if first_param is not None:
+            self.device = first_param.device
+        else:
+            self.device = 'cpu'  # Default to CPU if no parameters are provided
+
+
         super(SGLD, self).__init__(params, defaults)
 
     def __setstate__(self, state):
@@ -476,10 +484,10 @@ class SGLD(Optimizer):
                         d_p = buf
 
                 p.data.add_(d_p, alpha=-group['lr'])
-                noise_std = torch.tensor([2 * group['lr']])
+                noise_std = torch.tensor([2 * group['lr']]).to(self.device)
                 noise_std = noise_std.sqrt()
                 noise = p.data.new(p.data.size()).normal_(mean=0,
-                                                          std=1) * noise_std
+                                                          std=1).to(self.device) * noise_std
                 p.data.add_(noise)
 
         return 1.0

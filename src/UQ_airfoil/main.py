@@ -17,8 +17,8 @@ from sklearn.model_selection import train_test_split
 
 from dataset import UniformSampling, FourierEpicycles, TangentVec, AirfRANSDataset, XFoilDataset
 from model import EncodeProcessDecode, ZigZag, Ensemble, MCDropout
-from training import Trainer, EnsembleTrainer, SGLD, PowerDecayLR
-from utils import set_seed, Parser, ModelFactory
+from training import Trainer, EnsembleTrainer, SGLD,pSGLD, PowerDecayLR
+from utils import set_seed, Parser, ModelFactory, init_weights
 
 parser = Parser(print=True)
 args = parser.args
@@ -61,6 +61,7 @@ print(f' Available device: {device}')
 print( '----------------------------')
 
 model = ModelFactory.create(args).to(device)
+model.apply(init_weights)
 
 # model = ZigZag(
 #             node_features=n,
@@ -93,12 +94,14 @@ model = ModelFactory.create(args).to(device)
 #             p=0.1
 #             ).to(device)
 # loss = MSELoss()
-loss = lambda y, pred: n_samples*torch.mean((y-pred)**2) # !!!
+loss = lambda y, pred: n_samples/args.batch*torch.mean((y-pred)**2) # !!!
 
 initial_lr = 5e-3
 final_lr = 1e-4
 epochs = args.epochs
 gamma = (final_lr/initial_lr)**(1/epochs)
+
+lr = 1e-4
 
 if args.model_type ==  'ensemble':
     trainer = EnsembleTrainer(
@@ -116,15 +119,15 @@ else:
     trainer = Trainer(
         epochs=epochs,
         model=model,
-        optimizer=SGLD,
-        optim_kwargs={'lr':initial_lr,
+        optimizer=pSGLD,
+        optim_kwargs={'lr':lr,
                       'weight_decay': 1.0},
         loss_fn=loss,
         scheduler=PowerDecayLR,
-        scheduler_kwargs={'gamma':1/2,
-                          'a':1e-5, 'b':1},
+        scheduler_kwargs={'gamma':0.38,
+                          'a':lr, 'b':1},
         device=device,
-        mcmc=True,
+        mcmc=False,
         save_start=50,
         save_rate=5
     )

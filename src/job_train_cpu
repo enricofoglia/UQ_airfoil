@@ -4,7 +4,7 @@
 #SBATCH --begin=now                 #### calcul commmence au plus tot 
 #SBATCH --mail-user=enrico.foglia@isae-supaero.fr #### votre mail
 #SBATCH --mail-type=START,FAIL,END        #### mail quand c'est fini ou erreur
-#SBATCH --job-name=dropout            #### le nom de votre calcul
+#SBATCH --job-name=lr5e-5           #### le nom de votre calcul
 #SBATCH -o /scratch/daep/e.foglia/logs/%j.out   #### sortie standard STDOUT
 #SBATCH -e /scratch/daep/e.foglia/logs/%j.err   #### sortie erreur STDERR
 #SBATCH --gres-flags=enforce-binding
@@ -27,7 +27,7 @@ echo "NofNodes $nnodes NofTaskPerCpu $njobcpunode NofCpus $nprocs"
 #ldd ${FINE_BIN}
 cd UQ_airfoil
 
-epochs=200
+epochs=50
 samples=800
 hidden=64
 fourier=25
@@ -35,7 +35,7 @@ batch=16
 model_type="simple"
 z0=5.0
 p=0.1
-identifier="SGLD"
+identifier="pSGLD"
 
 log_file="${identifier}_${model_type}_${epochs}_${samples}_${hidden}_${fourier}_${batch}.logs"
 

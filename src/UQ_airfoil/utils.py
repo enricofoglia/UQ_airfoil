@@ -5,6 +5,7 @@ import random
 import numpy as np
 
 import torch
+from torch import nn
 
 from model import ZigZag, Ensemble, MCDropout, EncodeProcessDecode
 
@@ -35,6 +36,8 @@ class Parser:
         self.parser.add_argument('--z0', type=float, help='uninformative value for zigzag', default=-1.0)
         self.parser.add_argument('--drop_prob', '-p', type=float, default=0.1, help='dropout probability')
         self.parser.add_argument('--identifier', '-d', type=str, default='model', help='identifier to distinguish the model')
+        self.parser.add_argument('--gamma', '-g', type=float, default=1/2, help='exponent of power LR decay')
+        self.parser.add_argument('--lr', type=float, default=1e-3, help='initial learning rate')
 
         self.args = self.parser.parse_args()
         if print: self.message()
@@ -53,6 +56,8 @@ class Parser:
         print(f'| Hidden units  | {self.args.hidden:>10d} |')
         print(f'| Fourier modes | {self.args.fourier:>10d} |')
         print(f'| Batch size    | {self.args.batch:>10d} |')
+        print(f'| LR            | {self.args.lr:>10.2e} |')
+        print(f'| Gamma         | {self.args.gamma:>10.3f} |')
         if self.args.model_type == 'ensemble':
             print(f'| Ensemble size | {self.args.ens_size:>10d} |')
         elif self.args.model_type == 'dropout':
@@ -108,5 +113,15 @@ class ModelFactory:
 
         return model_dict
 
+def init_weights(m):
+    """
+    Initializes the weights of a PyTorch module with a Gaussian distribution.
     
+    Args:
+        m (torch.nn.Module): The module to initialize the weights for.
+    """
+    if isinstance(m, nn.Linear) or isinstance(m, nn.Conv2d):
+        torch.nn.init.normal_(m.weight, mean=0.0, std=0.1)
+        if m.bias is not None:
+            torch.nn.init.constant_(m.bias, 0)    
    

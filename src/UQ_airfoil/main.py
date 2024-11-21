@@ -17,8 +17,8 @@ from sklearn.model_selection import train_test_split
 
 from dataset import UniformSampling, FourierEpicycles, TangentVec, AirfRANSDataset, XFoilDataset
 from model import EncodeProcessDecode, ZigZag, Ensemble, MCDropout
-from training import Trainer, EnsembleTrainer, SGLD, PowerDecayLR
-from utils import set_seed, Parser, ModelFactory
+from training import Trainer, EnsembleTrainer, SGLD,pSGLD, PowerDecayLR
+from utils import set_seed, Parser, ModelFactory, init_weights
 
 parser = Parser(print=True)
 args = parser.args
@@ -32,8 +32,8 @@ N = args.fourier
 n_points = 250
 pre_transform = transforms.Compose((UniformSampling(n=n_points), FourierEpicycles(n=N), TangentVec(), Distance()))
 
-root = '/home/daep/e.foglia/Documents/1A/05_uncertainty_quantification/data/AirfRANS' # local
-# root = '/home/daep/e.foglia/Documents/02_UQ/01_airfrans/01_data/' # pando
+# root = '/home/daep/e.foglia/Documents/1A/05_uncertainty_quantification/data/AirfRANS' # local
+root = '/home/daep/e.foglia/Documents/02_UQ/01_airfrans/01_data/' # pando
 train_dataset = AirfRANSDataset('full',train=True, root=root, normalize=True, pre_transform=pre_transform, force_reload=False)
 mean = train_dataset.glob_mean
 std = train_dataset.glob_std
@@ -61,6 +61,7 @@ print(f' Available device: {device}')
 print( '----------------------------')
 
 model = ModelFactory.create(args).to(device)
+model.apply(init_weights)
 
 # model = ZigZag(
 #             node_features=n,
@@ -100,6 +101,8 @@ final_lr = 1e-4
 epochs = args.epochs
 gamma = (final_lr/initial_lr)**(1/epochs)
 
+lr = 1e-3
+
 if args.model_type ==  'ensemble':
     trainer = EnsembleTrainer(
         epochs=epochs,
@@ -116,22 +119,22 @@ else:
     trainer = Trainer(
         epochs=epochs,
         model=model,
-        optimizer=SGLD,
-        optim_kwargs={'lr':initial_lr,
+        optimizer=pSGLD,
+        optim_kwargs={'lr':args.lr,
                       'weight_decay': 1.0},
         loss_fn=loss,
         scheduler=PowerDecayLR,
-        scheduler_kwargs={'gamma':1/2,
-                          'a':1e-5, 'b':1},
+        scheduler_kwargs={'gamma':args.gamma,
+                          'a':args.lr, 'b':1},
         device=device,
-        mcmc=True,
-        save_start=3,
-        save_rate=1
+        mcmc=False,
+        save_start=50,
+        save_rate=5
     )
 
 
-# out_dir = '/home/daep/e.foglia/Documents/02_UQ/01_airfrans/03_results' # pando
-out_dir = '/home/daep/e.foglia/Documents/1A/05_uncertainty_quantification/scripts/paper/UQ_airfoil/out'
+out_dir = '/home/daep/e.foglia/Documents/02_UQ/01_airfrans/03_results' # pando
+# out_dir = '/home/daep/e.foglia/Documents/1A/05_uncertainty_quantification/scripts/paper/UQ_airfoil/out'
 
 model_name = f"{args.identifier}_{args.model_type}_{args.epochs}_{args.samples}_{args.hidden}_{args.fourier}_{args.batch}"
 
@@ -156,11 +159,11 @@ ax.legend()
 ax.set_xlabel('epoch')
 ax.set_ylabel(r'loss $\mathcal{L}(\theta)$')
 ax.set_title('Training history')
-plt.savefig(os.path.join(out_dir,f'training_history_{model_name}.png'), dpi=300)
+plt.savefig(os.path.join(out_dir,f'training_history_{model_name}_{args.identifier}_{args.epochs}_{args.samples}_{args.hidden}_{args.fourier}_{args.batch}_{args.lr}_{args.gamma}.png'), dpi=300)
 
 fig, ax = plt.subplots()
 ax.semilogy(trainer.lr_history)
 ax.set_xlabel('epoch')
 ax.set_ylabel('learning rate $l_r$')
 ax.set_title('Learing rate history')
-plt.savefig(os.path.join(out_dir,f'lr_history_{model_name}.png'), dpi=300)
+plt.savefig(os.path.join(out_dir,f'lr_history_{model_name}_{args.identifier}_{args.epochs}_{args.samples}_{args.hidden}_{args.fourier}_{args.batch}_{args.lr}_{args.gamma}.png'), dpi=300)

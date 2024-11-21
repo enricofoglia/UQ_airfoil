@@ -93,7 +93,7 @@ model = ModelFactory.create(args).to(device)
 #             p=0.1
 #             ).to(device)
 # loss = MSELoss()
-loss = lambda y, pred: n_samples*torch.mean((y-pred)**2) # !!!
+loss = lambda y, pred: n_samples/args.batch*torch.mean((y-pred)**2) # !!!
 
 initial_lr = 5e-3
 final_lr = 1e-4

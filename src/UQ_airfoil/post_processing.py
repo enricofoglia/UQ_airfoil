@@ -15,7 +15,7 @@ from sklearn.metrics import r2_score
 
 from dataset import XFoilDataset, FourierEpicycles, TangentVec, UniformSampling, AirfRANSDataset, corner_plot
 from model import EncodeProcessDecode, ZigZag, Ensemble, MCDropout
-from utils import count_parameters, set_seed
+from utils import count_parameters, set_seed, Parser, ModelFactory
 from metrics import auce_plot, ece_plot, TemperatureScaling
 # =================================================
 # Matplotlib settings
@@ -35,6 +35,8 @@ plt.rcParams.update({
 # =================================================
 
 set_seed(42)
+parser = Parser(print=True)
+args = parser.args
 
 # n = 20
 # pre_transform = FourierEpicycles(n=n, cat=False)
@@ -79,15 +81,17 @@ print(f'len dataset = {len(test_dataset)}')
 #             out_glob=1
 #             )
 
-model = ZigZag(
-            node_features=N+2+2+1,
-            edge_features=3,
-            hidden_features=64,
-            n_blocks=6,
-            out_nodes=1,
-            out_glob=0,
-            z0=-1.0, latent =True
-            )
+# model = ZigZag(
+#             node_features=N+2+2+1,
+#             edge_features=3,
+#             hidden_features=64,
+#             n_blocks=6,
+#             out_nodes=1,
+#             out_glob=0,
+#             z0=-1.0, latent =True
+#             )
+model = ModelFactory.create(args).to('cpu')
+
 
 # model = Ensemble(
 #             n_models=9,
@@ -110,7 +114,7 @@ model = ZigZag(
 #             p=0.1
 #             )
 
-model.load_state_dict(torch.load('../../out/trained_models/zigzag200.pt',
+model.load_state_dict(torch.load('../../out/trained_models/pSGLD_simple_200_800_64_25_32.pt',
                                  map_location=torch.device('cpu')))
 # for n,single_model in enumerate(model):
     # single_model.load_state_dict(torch.load(f'../../out/ensemble/test_full_airfrans_{n}.pt', map_location=torch.device('cpu')))

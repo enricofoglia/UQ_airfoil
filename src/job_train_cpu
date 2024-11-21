@@ -4,7 +4,7 @@
 #SBATCH --begin=now                 #### calcul commmence au plus tot 
 #SBATCH --mail-user=enrico.foglia@isae-supaero.fr #### votre mail
 #SBATCH --mail-type=START,FAIL,END        #### mail quand c'est fini ou erreur
-#SBATCH --job-name=lr5e-5           #### le nom de votre calcul
+#SBATCH --job-name=pSGLD          #### le nom de votre calcul
 #SBATCH -o /scratch/daep/e.foglia/logs/%j.out   #### sortie standard STDOUT
 #SBATCH -e /scratch/daep/e.foglia/logs/%j.err   #### sortie erreur STDERR
 #SBATCH --gres-flags=enforce-binding
@@ -36,10 +36,12 @@ model_type="simple"
 z0=5.0
 p=0.1
 identifier="pSGLD"
+lr=0.001
+gamma=0.9
 
-log_file="${identifier}_${model_type}_${epochs}_${samples}_${hidden}_${fourier}_${batch}.logs"
+log_file="${identifier}_${model_type}_${epochs}_${samples}_${hidden}_${fourier}_${batch}_${lr}_${gamma}.logs"
 
 echo $log_file
-python main.py -e $epochs -s $samples -i $hidden -f $fourier -b $batch -p $p --z0 $z0 --model_type $model_type --identifier $identifier > $log_file 2>&1
+python main.py -e $epochs -s $samples -i $hidden -f $fourier -b $batch -p $p --z0 $z0 --model_type $model_type --identifier $identifier --lr $lr --gamma $gamma > $log_file 2>&1
 
 mv $log_file /home/daep/e.foglia/Documents/02_UQ/01_airfrans/03_results/logs

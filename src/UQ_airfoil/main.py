@@ -94,14 +94,14 @@ model.apply(init_weights)
 #             p=0.1
 #             ).to(device)
 # loss = MSELoss()
-loss = lambda y, pred: n_samples/args.batch*torch.mean((y-pred)**2) # !!!
+loss = lambda y, pred: n_samples*torch.mean((y-pred)**2) # !!!
 
 initial_lr = 5e-3
 final_lr = 1e-4
 epochs = args.epochs
 gamma = (final_lr/initial_lr)**(1/epochs)
 
-lr = 1e-4
+lr = 1e-3
 
 if args.model_type ==  'ensemble':
     trainer = EnsembleTrainer(
@@ -120,12 +120,12 @@ else:
         epochs=epochs,
         model=model,
         optimizer=pSGLD,
-        optim_kwargs={'lr':lr,
+        optim_kwargs={'lr':args.lr,
                       'weight_decay': 1.0},
         loss_fn=loss,
         scheduler=PowerDecayLR,
-        scheduler_kwargs={'gamma':0.38,
-                          'a':lr, 'b':1},
+        scheduler_kwargs={'gamma':args.gamma,
+                          'a':args.lr, 'b':1},
         device=device,
         mcmc=False,
         save_start=50,
@@ -159,11 +159,11 @@ ax.legend()
 ax.set_xlabel('epoch')
 ax.set_ylabel(r'loss $\mathcal{L}(\theta)$')
 ax.set_title('Training history')
-plt.savefig(os.path.join(out_dir,f'training_history_{model_name}.png'), dpi=300)
+plt.savefig(os.path.join(out_dir,f'training_history_{model_name}_{args.identifier}_{args.epochs}_{args.samples}_{args.hidden}_{args.fourier}_{args.batch}_{args.lr}_{args.gamma}.png'), dpi=300)
 
 fig, ax = plt.subplots()
 ax.semilogy(trainer.lr_history)
 ax.set_xlabel('epoch')
 ax.set_ylabel('learning rate $l_r$')
 ax.set_title('Learing rate history')
-plt.savefig(os.path.join(out_dir,f'lr_history_{model_name}.png'), dpi=300)
+plt.savefig(os.path.join(out_dir,f'lr_history_{model_name}_{args.identifier}_{args.epochs}_{args.samples}_{args.hidden}_{args.fourier}_{args.batch}_{args.lr}_{args.gamma}.png'), dpi=300)

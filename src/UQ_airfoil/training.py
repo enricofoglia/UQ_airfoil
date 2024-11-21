@@ -187,10 +187,10 @@ class Trainer():
             else:
                 pred1, pred_glob1, feedback = model(batch, return_hidden=True)
             pred2, pred_glob2 = model(batch, feedback.detach())
-            loss = 0.5*(self.loss_fn(pred1.squeeze(), y.squeeze()) 
-                        + self.weight*self.loss_fn(pred_glob1.squeeze(), y_glob.squeeze())
-                        + self.loss_fn(pred2.squeeze(), y.squeeze()) 
-                        + self.weight*self.loss_fn(pred_glob2.squeeze(), y_glob.squeeze()))
+            loss = self.loss_fn(pred1.squeeze(), y.squeeze()) \
+                        + self.weight*self.loss_fn(pred_glob1.squeeze(), y_glob.squeeze()) \
+                        + self.loss_fn(pred2.squeeze(), y.squeeze()) \
+                        + self.weight*self.loss_fn(pred_glob2.squeeze(), y_glob.squeeze())
         else:
             if 'latent' not in model.kind.split('_'):
                 pred1 = model(batch)
@@ -198,8 +198,8 @@ class Trainer():
             else:
                 pred1, feedback = model(batch, return_hidden=True)
             pred2 = model(batch, feedback.detach())
-            loss = 0.5*(self.loss_fn(pred1.squeeze(), y.squeeze()) 
-                        + self.loss_fn(pred2.squeeze(), y.squeeze()))
+            loss = self.loss_fn(pred1.squeeze(), y.squeeze()) \
+                        + self.loss_fn(pred2.squeeze(), y.squeeze())
             
         return loss
 
@@ -514,7 +514,7 @@ class pSGLD(torch.optim.Optimizer):
             lr (float, optional): Learning rate. Default is 1e-2.
             beta (float, optional): Exponential moving average coefficient.
                 Default is 0.99.
-            Lambda (float, optional): Epsilon value. Default is 1e-15.
+            Lambda (float, optional): Epsilon value. Default is 1e-5.
             weight_decay (float, optional): Weight decay coefficient. Default
                 is 0.
             centered (bool, optional): Whether to use centered gradients.

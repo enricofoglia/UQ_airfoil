@@ -61,7 +61,10 @@ print(f' Available device: {device}')
 print( '----------------------------')
 
 model = ModelFactory.create(args).to(device)
-model.apply(init_weights)
+# model.apply(init_weights)
+
+MAP_sol_file='/home/daep/e.foglia/Documents/02_UQ/01_airfrans/03_results/trained_models/MAP_simple_200_800_64_25_16.pt'
+model.load_state_dict(torch.load(MAP_sol_file))
 
 # model = ZigZag(
 #             node_features=n,
@@ -101,7 +104,6 @@ final_lr = 1e-4
 epochs = args.epochs
 gamma = (final_lr/initial_lr)**(1/epochs)
 
-lr = 1e-3
 
 if args.model_type ==  'ensemble':
     trainer = EnsembleTrainer(
@@ -119,9 +121,9 @@ else:
     trainer = Trainer(
         epochs=epochs,
         model=model,
-        optimizer=pSGLD,
+        optimizer=Adam,
         optim_kwargs={'lr':args.lr,
-                      'weight_decay': 1.0},
+                      'weight_decay': 0.0},
         loss_fn=loss,
         scheduler=PowerDecayLR,
         scheduler_kwargs={'gamma':args.gamma,

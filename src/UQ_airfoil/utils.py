@@ -121,7 +121,7 @@ def init_weights(m):
         m (torch.nn.Module): The module to initialize the weights for.
     """
     if isinstance(m, nn.Linear) or isinstance(m, nn.Conv2d):
-        torch.nn.init.normal_(m.weight, mean=0.0, std=0.1)
+        torch.nn.init.normal_(m.weight, mean=0.0, std=0.2)
         if m.bias is not None:
             torch.nn.init.constant_(m.bias, 0)    
    

@@ -4,6 +4,12 @@
 .. automodule:: dataset
 
    
+   .. rubric:: Functions
+
+   .. autosummary::
+   
+      corner_plot
+   
    .. rubric:: Classes
 
    .. autosummary::

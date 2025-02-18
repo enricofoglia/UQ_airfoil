@@ -114,7 +114,7 @@ model = ModelFactory.create(args).to('cpu')
 #             p=0.1
 #             )
 
-model.load_state_dict(torch.load('../../out/trained_models/pSGLD_simple_200_800_64_25_32.pt',
+model.load_state_dict(torch.load('../../out/trained_models/MAP_simple_200_800_64_25_16.pt',
                                  map_location=torch.device('cpu')))
 # for n,single_model in enumerate(model):
     # single_model.load_state_dict(torch.load(f'../../out/ensemble/test_full_airfrans_{n}.pt', map_location=torch.device('cpu')))
@@ -146,7 +146,11 @@ for i, ind in enumerate(indices):
         if model.kind == 'dropout':
             pred, var = model(graph, T=50, return_var=True)
         else: 
-            pred, var = model(graph, return_var=True)
+            try:
+                pred, var = model(graph, return_var=True)
+            except TypeError:
+                pred = model(graph)
+                var = torch.zeros_like(pred)
 
 
     std = torch.sqrt(var)
@@ -162,7 +166,7 @@ for i, ind in enumerate(indices):
         ax[row,col].set_ylabel(r'$c_p$ [-]')
     
 ax[0,1].legend()
-
+plt.show()
 # for ind, graph in tqdm(enumerate(train_dataset), total=len(train_dataset)):
 #     fig, ax = plt.subplots()
 #     ax.plot(graph.pos[:,0], graph.pos[:,1], 'o-')
@@ -204,7 +208,11 @@ with torch.no_grad():
         if model.kind == 'dropout':
             pred, var = model(graph, T=50, return_var=True)
         else: 
-            pred, var = model(graph, return_var=True)
+            try:
+                pred, var = model(graph, return_var=True)
+            except TypeError:
+                pred = model(graph)
+                var = torch.zeros_like(pred)
         gt.append(graph.y.numpy())
         preds.append(pred.numpy())
         std_list.append(torch.sqrt(var).numpy())
@@ -248,7 +256,11 @@ with torch.no_grad():
     if model.kind == 'dropout':
         pred, var = model(graph, T=50, return_var=True)
     else: 
-        pred, var = model(graph, return_var=True)
+        try:
+            pred, var = model(graph, return_var=True)
+        except TypeError:
+            pred = model(graph)
+            var= torch.zeros_like(pred)
 
 
 std = torch.sqrt(var)

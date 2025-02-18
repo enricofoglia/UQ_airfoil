@@ -11,3 +11,9 @@
       auce_plot
       ece_plot
    
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      TemperatureScaling
+   

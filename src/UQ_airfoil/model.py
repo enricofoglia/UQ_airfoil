@@ -70,8 +70,9 @@ class MiniMLP(nn.Module):
         Returns:
             torch.Tensor: Output tensor of shape (batch_size, targets)
         '''
-        for layer in self.layers[:-1]:
-            x = self.activation(layer(x))
+        x = self.activation(self.layers[0](x))
+        for layer in self.layers[1:-1]:
+            x = x + self.activation(layer(x)) # add skip connections
         return self.layers[-1](x)
     
 class DropoutMLP(MiniMLP):
@@ -98,9 +99,11 @@ class DropoutMLP(MiniMLP):
         Returns:
             torch.Tensor: Output tensor of shape (batch_size, targets)
         '''
-        for layer in self.layers[:-1]:
-            x = self.dropout(self.activation(layer(x)))
+        x = self.activation(self.layers[0](x))
+        for layer in self.layers[1:-1]:
+            x = x + self.activation(layer(x)) # add skip connections
         return self.layers[-1](x)
+    
     
     
 class GNNBlock(pyg.nn.conv.MessagePassing):

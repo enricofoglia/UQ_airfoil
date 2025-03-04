@@ -20,10 +20,10 @@ from metrics import auce_plot, ece_plot, TemperatureScaling
 # =================================================
 # Matplotlib settings
 plt.rcParams.update({
-    "text.usetex": True,
+    # "text.usetex": True,
     "font.family": "sans-serif",
     "font.sans-serif": ["Computer Modern Sans Serif"],
-    "text.latex.preamble": r"\usepackage{amsmath,amsfonts}\usepackage[cm]{sfmath}",
+    # "text.latex.preamble": r"\usepackage{amsmath,amsfonts}\usepackage[cm]{sfmath}",
     'axes.linewidth' : 2,
     'lines.linewidth' : 2,
     'axes.labelsize' : 16,
@@ -53,7 +53,8 @@ pre_transform = transforms.Compose((UniformSampling(n=n_points), FourierEpicycle
 # root = '/home/daep/e.foglia/Documents/1A/05_uncertainty_quantification/data/airfoils/train_shapes'
 # dataset = XFoilDataset(root, pre_transform=pre_transform, force_reload=True)
 # root = '/home/daep/e.foglia/Documents/1A/05_uncertainty_quantification/data/AirfRANS' # pando
-root = '/home/daep/e.foglia/Documents/1A/05_uncertainty_quantification/data/AirfRANS' # local
+# root = '/home/daep/e.foglia/Documents/1A/05_uncertainty_quantification/data/AirfRANS' # local
+root = '/home/daep/e.foglia/Documents/02_UQ/01_airfrans/01_data/' # pando
 
 train_dataset = AirfRANSDataset('full', True, root, normalize=True, pre_transform=pre_transform, force_reload=False)
 train_glob = train_dataset.get_global()
@@ -61,7 +62,7 @@ corner_plot(train_glob)
 
 mean = train_dataset.glob_mean
 std = train_dataset.glob_std
-test_dataset = AirfRANSDataset('scarce', False, root, normalize=(mean,std), pre_transform=pre_transform, force_reload=False)
+test_dataset = AirfRANSDataset('full', False, root, normalize=(mean,std), pre_transform=pre_transform, force_reload=False)
 test_glob = test_dataset.get_global()
 corner_plot(test_glob)
 
@@ -70,24 +71,24 @@ print(f'len dataset = {len(test_dataset)}')
 # plot corner plot dataset
 
 
-# model = EncodeProcessDecode(
-#             node_features=3+n,
-#             edge_features=3,
-#             hidden_features=64,
-#             n_blocks=6,
-#             out_nodes=1,
-#             out_glob=1
-#             )
-
-model = ZigZag(
+model = EncodeProcessDecode(
             node_features=N+2+2+1,
             edge_features=3,
             hidden_features=64,
-            n_blocks=6,
+            n_blocks=4,
             out_nodes=1,
-            out_glob=0,
-            z0=-1.0, latent =True
+            out_glob=0
             )
+
+# model = ZigZag(
+#             node_features=N+2+2+1,
+#             edge_features=3,
+#             hidden_features=128,
+#             n_blocks=6,
+#             out_nodes=1,
+#             out_glob=0,
+#             z0=5.0, latent =False
+#             )
 
 # model = Ensemble(
 #             n_models=9,
@@ -110,7 +111,7 @@ model = ZigZag(
 #             p=0.1
 #             )
 
-model.load_state_dict(torch.load('../../out/trained_models/zigzag200.pt',
+model.load_state_dict(torch.load('../../../03_results/trained_models/SGLD_skip_precond_simple_200_800_64_25_16_0.0001_0.5.pt',
                                  map_location=torch.device('cpu')))
 # for n,single_model in enumerate(model):
     # single_model.load_state_dict(torch.load(f'../../out/ensemble/test_full_airfrans_{n}.pt', map_location=torch.device('cpu')))
@@ -142,7 +143,9 @@ for i, ind in enumerate(indices):
         if model.kind == 'dropout':
             pred, var = model(graph, T=50, return_var=True)
         else: 
-            pred, var = model(graph, return_var=True)
+            # pred, var = model(graph, return_var=True)
+            pred = model(graph)
+            var = torch.ones_like(pred)
 
 
     std = torch.sqrt(var)
@@ -200,7 +203,9 @@ with torch.no_grad():
         if model.kind == 'dropout':
             pred, var = model(graph, T=50, return_var=True)
         else: 
-            pred, var = model(graph, return_var=True)
+            # pred, var = model(graph, return_var=True)
+            pred = model(graph)
+            var = torch.ones_like(pred)
         gt.append(graph.y.numpy())
         preds.append(pred.numpy())
         std_list.append(torch.sqrt(var).numpy())
@@ -221,6 +226,8 @@ ax.set_xlabel('predicted')
 ax.set_ylabel('true')
 ax.set_title(f'Correlation plot; $R^2$ score = {r2:.2f}')
 
+plt.show()
+exit(0)
 # auce
 auce_plot(gt[::10], preds[::10], std[::10])
 ece_plot(gt[::10], preds[::10], std[::10], B=8, binning='quantile')

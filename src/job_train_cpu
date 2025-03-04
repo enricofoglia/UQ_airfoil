@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --nodes=1                   #### Nb de noeuds
-#SBATCH --time=12:00:00             #### temps demandé maximum 
+#SBATCH --time=24:00:00             #### temps demandé maximum 
 #SBATCH --begin=now                 #### calcul commmence au plus tot 
 #SBATCH --mail-user=enrico.foglia@isae-supaero.fr #### votre mail
 #SBATCH --mail-type=START,FAIL,END        #### mail quand c'est fini ou erreur
@@ -27,7 +27,7 @@ echo "NofNodes $nnodes NofTaskPerCpu $njobcpunode NofCpus $nprocs"
 #ldd ${FINE_BIN}
 cd UQ_airfoil
 
-epochs=300
+epochs=200
 samples=800
 hidden=64
 fourier=25
@@ -35,13 +35,13 @@ batch=16
 model_type="simple"
 z0=5.0
 p=0.1
-identifier="SGLD"
-lr=0.00001
-gamma=0.35
+identifier="SGLD_skip_precond"
+lr=1e-4
+gamma=0.5
 
 log_file="${identifier}_${model_type}_${epochs}_${samples}_${hidden}_${fourier}_${batch}_${lr}_${gamma}.logs"
 
 echo $log_file
-python main.py -e $epochs -s $samples -i $hidden -f $fourier -b $batch -p $p --z0 $z0 --model_type $model_type --identifier $identifier --lr $lr --gamma $gamma > $log_file 2>&1
+python main.py -e $epochs -s $samples -i $hidden -f $fourier -b $batch -p $p --z0 $z0 --model_type $model_type --identifier $identifier --lr $lr --gamma $gamma --precond > $log_file 2>&1
 
 mv $log_file /home/daep/e.foglia/Documents/02_UQ/01_airfrans/03_results/logs

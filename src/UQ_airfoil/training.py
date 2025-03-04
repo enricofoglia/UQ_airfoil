@@ -399,7 +399,7 @@ class EnsembleTrainer(Trainer):
         torch.save(model.state_dict(), filename)
 
 
-class SGLD(Optimizer):
+class _SGLD(Optimizer):
     """Implements SGLD algorithm based on
         https://www.ics.uci.edu/~welling/publications/papers/stoclangevin_v6.pdf
 
@@ -491,6 +491,135 @@ class SGLD(Optimizer):
                 p.data.add_(noise)
 
         return 1.0
+
+class SGLD(Optimizer):
+    """Implements SGDL optimizer by directly discretizing the Langevin SDE
+    using a symplectic Euler-Maruyama scheme.
+    """
+
+    def __init__(self,
+                 params,
+                 lr=required,
+                 momentum=0,
+                 weight_decay=0,
+                 temperature=1.0,
+                 n_data=1,
+                 precond=False, 
+                 precond_alpha=0.99,
+                 precond_eps=1e-5):
+        if lr is not required and lr < 0.0:
+            raise ValueError("Invalid learning rate: {}".format(lr))
+        
+        if momentum < 0.0 or momentum > 1.0:
+            raise ValueError(
+                f"Invalid momentum value: {momentum}")
+        
+        if weight_decay < 0.0:
+            raise ValueError(
+                "Invalid weight_decay value: {}".format(weight_decay))
+        
+        if temperature < 0.0:
+            raise ValueError(
+                "Invalid temperature value: {}".format(temperature))
+        
+        if precond_eps < 0.0:
+            raise ValueError(
+                "Invalid precond_eps value: {}".format(precond_eps))
+        
+        if precond_alpha < 0.0 or precond_alpha > 1.0:
+            raise ValueError(
+                "Invalid precond_alpha value: {}".format(precond_alpha))
+
+        defaults = dict(lr=lr,
+                        momentum=momentum,
+                        weight_decay=weight_decay,
+                        temperature=temperature,
+                        n_data=n_data,
+                        precond=precond,
+                        precond_alpha=precond_alpha,
+                        precond_eps=precond_eps)
+
+        first_param = next(iter(params), None)
+        if first_param is not None:
+            self.device = first_param.device
+        else:
+            self.device = 'cpu'  # Default to CPU if no parameters are provided
+
+        super(SGLD, self).__init__(params, defaults)
+
+    def step(self):
+        for group in self.param_groups:
+            weight_decay = group['weight_decay']
+            momentum = group['momentum']
+            temperature = group['temperature']
+            lr = group['lr']
+            n_data = group['n_data']
+            precond = group['precond']
+            precond_alpha = group['precond_alpha']
+            precond_eps = group['precond_eps']
+
+            dt = torch.sqrt(torch.tensor(lr/n_data)) # SDE time step
+            gamma = (1-momentum)/dt # friction 
+
+
+            for p in group['params']:
+                if p.grad is None:
+                    continue
+
+                # Create a detached copy of the gradient for the momentum update
+                grad_data = p.grad.detach()
+                m = grad_data.clone()
+                
+                if weight_decay != 0:
+                    m.add_(p.data, alpha=weight_decay/n_data)
+
+                m.mul_(-dt * n_data * temperature)
+
+                if momentum != 0:
+                    param_state = self.state[p]
+                    if 'momentum_buffer' not in param_state:
+                        buf = param_state['momentum_buffer'] = torch.clone(
+                            m).detach()
+                    else:
+                        buf = param_state['momentum_buffer']
+                        buf.mul_(1-gamma*dt)
+                    m.add_(buf)
+
+                noise_std = torch.sqrt(2*gamma*temperature*dt).to(self.device)
+
+                if precond:
+                    M = self.estimate_preconditioner(p, alpha=precond_alpha, epsilon=precond_eps)
+                    noise_std = noise_std * M.sqrt()
+
+                noise = p.data.new(p.data.size()).normal_(mean=0,
+                                                          std=1).to(self.device) * noise_std
+                m.add_(noise)
+                
+                if momentum != 0:
+                    param_state['momentum_buffer'] = m.clone()
+
+                # Update parameter using detached momentum
+                if precond:
+                        p.data.add_(m/M, alpha=dt)
+                else:
+                    p.data.add_(m, alpha=dt)
+
+        return 1.0
+    
+    @torch.no_grad()
+    def estimate_preconditioner(self, p, alpha=0.99, epsilon=1e-5):
+        """Estimate the preconditioner for the SGLD optimizer.
+        """
+        param_state = self.state[p]
+        if 'V' not in param_state:
+            param_state['V'] = torch.zeros_like(p.data)
+
+        M = param_state['V']
+        grad = p.grad.data
+        M.mul_(alpha).addcmul_(grad, grad, value=1-alpha)
+        M.add_(epsilon).sqrt_()
+        return M
+                
     
 class pSGLD(torch.optim.Optimizer):
     """Implements pSGLD algorithm based on https://arxiv.org/pdf/1512.07666.pdf

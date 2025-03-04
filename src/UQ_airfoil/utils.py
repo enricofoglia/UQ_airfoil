@@ -38,6 +38,7 @@ class Parser:
         self.parser.add_argument('--identifier', '-d', type=str, default='model', help='identifier to distinguish the model')
         self.parser.add_argument('--gamma', '-g', type=float, default=1/2, help='exponent of power LR decay')
         self.parser.add_argument('--lr', type=float, default=1e-3, help='initial learning rate')
+        self.parser.add_argument('--precond', action='store_true', help='use RMSprop preconditioner')
 
         self.args = self.parser.parse_args()
         if print: self.message()
@@ -58,6 +59,7 @@ class Parser:
         print(f'| Batch size    | {self.args.batch:>10d} |')
         print(f'| LR            | {self.args.lr:>10.2e} |')
         print(f'| Gamma         | {self.args.gamma:>10.3f} |')
+        print(f'| Precond       | {"yes" if self.args.precond else "no":>10s} |')
         if self.args.model_type == 'ensemble':
             print(f'| Ensemble size | {self.args.ens_size:>10d} |')
         elif self.args.model_type == 'dropout':
@@ -93,7 +95,7 @@ class ModelFactory:
     def _model_parameters(args) -> dict:
         model_dict = {
             'edge_features': 3,
-            'n_blocks': 6,
+            'n_blocks': 4,
             'out_nodes': 1,
             'out_glob': 0
         }
@@ -113,7 +115,7 @@ class ModelFactory:
 
         return model_dict
 
-def init_weights(m):
+def init_weights(m, std=0.1):
     """
     Initializes the weights of a PyTorch module with a Gaussian distribution.
     
@@ -121,7 +123,7 @@ def init_weights(m):
         m (torch.nn.Module): The module to initialize the weights for.
     """
     if isinstance(m, nn.Linear) or isinstance(m, nn.Conv2d):
-        torch.nn.init.normal_(m.weight, mean=0.0, std=0.2)
+        torch.nn.init.normal_(m.weight, mean=0.0, std=std)
         if m.bias is not None:
             torch.nn.init.constant_(m.bias, 0)    
    

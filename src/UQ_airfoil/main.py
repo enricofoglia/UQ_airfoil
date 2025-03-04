@@ -121,9 +121,15 @@ else:
     trainer = Trainer(
         epochs=epochs,
         model=model,
-        optimizer=Adam,
+        optimizer=SGLD,
         optim_kwargs={'lr':args.lr,
-                      'weight_decay': 0.0},
+                      'weight_decay': 10.0,
+                      'momentum': 0.98,
+                      'temperature': 0.1,
+                      'n_data':len(train_dataset),
+                      'precond':args.precond,
+                      'precond_alpha': 0.99,
+                      'precond_eps': 1e-5},
         loss_fn=loss,
         scheduler=PowerDecayLR,
         scheduler_kwargs={'gamma':args.gamma,
@@ -138,7 +144,7 @@ else:
 out_dir = '/home/daep/e.foglia/Documents/02_UQ/01_airfrans/03_results' # pando
 # out_dir = '/home/daep/e.foglia/Documents/1A/05_uncertainty_quantification/scripts/paper/UQ_airfoil/out'
 
-model_name = f"{args.identifier}_{args.model_type}_{args.epochs}_{args.samples}_{args.hidden}_{args.fourier}_{args.batch}"
+model_name = f"{args.identifier}_{args.model_type}_{args.epochs}_{args.samples}_{args.hidden}_{args.fourier}_{args.batch}_{args.lr}_{args.gamma}"
 
 
 tic = time.time()
@@ -161,11 +167,11 @@ ax.legend()
 ax.set_xlabel('epoch')
 ax.set_ylabel(r'loss $\mathcal{L}(\theta)$')
 ax.set_title('Training history')
-plt.savefig(os.path.join(out_dir,f'training_history_{model_name}_{args.identifier}_{args.epochs}_{args.samples}_{args.hidden}_{args.fourier}_{args.batch}_{args.lr}_{args.gamma}.png'), dpi=300)
+plt.savefig(os.path.join(out_dir,f'training_history_{model_name}.png'), dpi=300)
 
 fig, ax = plt.subplots()
 ax.semilogy(trainer.lr_history)
 ax.set_xlabel('epoch')
 ax.set_ylabel('learning rate $l_r$')
 ax.set_title('Learing rate history')
-plt.savefig(os.path.join(out_dir,f'lr_history_{model_name}_{args.identifier}_{args.epochs}_{args.samples}_{args.hidden}_{args.fourier}_{args.batch}_{args.lr}_{args.gamma}.png'), dpi=300)
+plt.savefig(os.path.join(out_dir,f'lr_history_{model_name}.png'), dpi=300)

@@ -20,10 +20,10 @@ from metrics import auce_plot, ece_plot, TemperatureScaling
 # =================================================
 # Matplotlib settings
 plt.rcParams.update({
-    "text.usetex": True,
+    # "text.usetex": True,
     "font.family": "sans-serif",
     "font.sans-serif": ["Computer Modern Sans Serif"],
-    "text.latex.preamble": r"\usepackage{amsmath,amsfonts}\usepackage[cm]{sfmath}",
+    # "text.latex.preamble": r"\usepackage{amsmath,amsfonts}\usepackage[cm]{sfmath}",
     'axes.linewidth' : 2,
     'lines.linewidth' : 2,
     'axes.labelsize' : 16,
@@ -55,7 +55,8 @@ pre_transform = transforms.Compose((UniformSampling(n=n_points), FourierEpicycle
 # root = '/home/daep/e.foglia/Documents/1A/05_uncertainty_quantification/data/airfoils/train_shapes'
 # dataset = XFoilDataset(root, pre_transform=pre_transform, force_reload=True)
 # root = '/home/daep/e.foglia/Documents/1A/05_uncertainty_quantification/data/AirfRANS' # pando
-root = '/home/daep/e.foglia/Documents/1A/05_uncertainty_quantification/data/AirfRANS' # local
+# root = '/home/daep/e.foglia/Documents/1A/05_uncertainty_quantification/data/AirfRANS' # local
+root = '/home/daep/e.foglia/Documents/02_UQ/01_airfrans/01_data/' # pando
 
 train_dataset = AirfRANSDataset('full', True, root, normalize=True, pre_transform=pre_transform, force_reload=False)
 train_glob = train_dataset.get_global()
@@ -63,7 +64,7 @@ corner_plot(train_glob)
 
 mean = train_dataset.glob_mean
 std = train_dataset.glob_std
-test_dataset = AirfRANSDataset('scarce', False, root, normalize=(mean,std), pre_transform=pre_transform, force_reload=False)
+test_dataset = AirfRANSDataset('full', False, root, normalize=(mean,std), pre_transform=pre_transform, force_reload=False)
 test_glob = test_dataset.get_global()
 corner_plot(test_glob)
 
@@ -208,11 +209,7 @@ with torch.no_grad():
         if model.kind == 'dropout':
             pred, var = model(graph, T=50, return_var=True)
         else: 
-            try:
-                pred, var = model(graph, return_var=True)
-            except TypeError:
-                pred = model(graph)
-                var = torch.zeros_like(pred)
+            pred, var = model(graph, return_var=True)
         gt.append(graph.y.numpy())
         preds.append(pred.numpy())
         std_list.append(torch.sqrt(var).numpy())
@@ -233,6 +230,8 @@ ax.set_xlabel('predicted')
 ax.set_ylabel('true')
 ax.set_title(f'Correlation plot; $R^2$ score = {r2:.2f}')
 
+plt.show()
+exit(0)
 # auce
 auce_plot(gt[::10], preds[::10], std[::10])
 ece_plot(gt[::10], preds[::10], std[::10], B=8, binning='quantile')

@@ -2,11 +2,12 @@ import os
 import argparse
 
 import time
+from datetime import datetime
 
 import torch 
 from torch.optim import Adam
 from torch.nn import MSELoss
-from torch.optim.lr_scheduler import ExponentialLR
+from torch.optim.lr_scheduler import ExponentialLR, CosineAnnealingLR
 
 from torch_geometric.loader import DataLoader
 
@@ -20,6 +21,11 @@ from model import EncodeProcessDecode, ZigZag, Ensemble, MCDropout
 from training import Trainer, EnsembleTrainer, SGLD,pSGLD, PowerDecayLR
 from utils import set_seed, Parser, ModelFactory, init_weights
 
+print('+-----------------------------+')
+print("| Current date and time :     |")
+print(f'| {datetime.now().strftime("%Y-%m-%d %H:%M:%S")} |')
+print('+-----------------------------+')
+
 parser = Parser(print=True)
 args = parser.args
 # set seed for reproducibility
@@ -30,14 +36,17 @@ args = parser.args
 
 N = args.fourier
 n_points = 250
-pre_transform = transforms.Compose((UniformSampling(n=n_points), FourierEpicycles(n=N), TangentVec(), Distance()))
+if N == 0:
+    pre_transform = transforms.Compose((UniformSampling(n=n_points), TangentVec(), Distance()))
+else:
+    pre_transform = transforms.Compose((UniformSampling(n=n_points), FourierEpicycles(n=N), TangentVec(), Distance()))
 
 # root = '/home/daep/e.foglia/Documents/1A/05_uncertainty_quantification/data/AirfRANS' # local
 root = '/home/daep/e.foglia/Documents/02_UQ/01_airfrans/01_data/' # pando
-train_dataset = AirfRANSDataset('full',train=True, root=root, normalize=True, pre_transform=pre_transform, force_reload=False)
+train_dataset = AirfRANSDataset('full',train=True, root=root, normalize=True, pre_transform=pre_transform, force_reload=True)
 mean = train_dataset.glob_mean
 std = train_dataset.glob_std
-test_dataset = AirfRANSDataset('full',train=False, root=root, normalize=(mean, std), pre_transform=pre_transform, force_reload=False)
+test_dataset = AirfRANSDataset('full',train=False, root=root, normalize=(mean, std), pre_transform=pre_transform, force_reload=True)
 
 n_samples = args.samples
 
@@ -63,8 +72,8 @@ print( '----------------------------')
 model = ModelFactory.create(args).to(device)
 # model.apply(init_weights)
 
-MAP_sol_file='/home/daep/e.foglia/Documents/02_UQ/01_airfrans/03_results/trained_models/MAP_simple_200_800_64_25_16.pt'
-model.load_state_dict(torch.load(MAP_sol_file))
+# MAP_sol_file='/home/daep/e.foglia/Documents/02_UQ/01_airfrans/03_results/trained_models/MAP_simple_200_800_64_25_16.pt'
+# model.load_state_dict(torch.load(MAP_sol_file))
 
 # model = ZigZag(
 #             node_features=n,
@@ -121,22 +130,24 @@ else:
     trainer = Trainer(
         epochs=epochs,
         model=model,
-        optimizer=SGLD,
-        optim_kwargs={'lr':args.lr,
-                      'weight_decay': 10.0,
-                      'momentum': 0.98,
-                      'temperature': 0.1,
-                      'n_data':len(train_dataset),
-                      'precond':args.precond,
-                      'precond_alpha': 0.99,
-                      'precond_eps': 1e-5},
+        # optimizer=SGLD,
+        # optim_kwargs={'lr':args.lr,
+        #               'weight_decay': 10.0,
+        #               'momentum': 0.98,
+        #               'temperature': 0.1,
+        #               'n_data':len(train_dataset),
+        #               'precond':args.precond,
+        #               'precond_alpha': 0.99,
+        #               'precond_eps': 1e-5},
+        optimizer=Adam,
+        optim_kwargs={'lr':args.lr},
         loss_fn=loss,
-        scheduler=PowerDecayLR,
-        scheduler_kwargs={'gamma':args.gamma,
-                          'a':args.lr, 'b':1},
+        scheduler=CosineAnnealingLR,
+        scheduler_kwargs={'T_max':epochs,
+                          'eta_min':1e-5},
         device=device,
         mcmc=False,
-        save_start=50,
+        save_start=150,
         save_rate=5
     )
 
@@ -144,7 +155,7 @@ else:
 out_dir = '/home/daep/e.foglia/Documents/02_UQ/01_airfrans/03_results' # pando
 # out_dir = '/home/daep/e.foglia/Documents/1A/05_uncertainty_quantification/scripts/paper/UQ_airfoil/out'
 
-model_name = f"{args.identifier}_{args.model_type}_{args.epochs}_{args.samples}_{args.hidden}_{args.fourier}_{args.batch}_{args.lr}_{args.gamma}"
+model_name = f"{args.identifier}_{args.model_type}_{args.epochs}_{args.samples}_{args.hidden}_{args.fourier}_{args.batch}_{args.lr}_{args.gamma}_{args.blocks}"
 
 
 tic = time.time()

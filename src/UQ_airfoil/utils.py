@@ -39,6 +39,7 @@ class Parser:
         self.parser.add_argument('--gamma', '-g', type=float, default=1/2, help='exponent of power LR decay')
         self.parser.add_argument('--lr', type=float, default=1e-3, help='initial learning rate')
         self.parser.add_argument('--precond', action='store_true', help='use RMSprop preconditioner')
+        self.parser.add_argument('--blocks', type=int, default=4, help='number of processing blocks')
 
         self.args = self.parser.parse_args()
         if print: self.message()
@@ -55,6 +56,7 @@ class Parser:
         print(f'| Epochs        | {self.args.epochs:>10d} |')
         print(f'| Samples       | {self.args.samples:>10d} |')
         print(f'| Hidden units  | {self.args.hidden:>10d} |')
+        print(f'| Blocks        | {self.args.blocks:>10d} |')
         print(f'| Fourier modes | {self.args.fourier:>10d} |')
         print(f'| Batch size    | {self.args.batch:>10d} |')
         print(f'| LR            | {self.args.lr:>10.2e} |')
@@ -95,7 +97,7 @@ class ModelFactory:
     def _model_parameters(args) -> dict:
         model_dict = {
             'edge_features': 3,
-            'n_blocks': 4,
+            'n_blocks': args.blocks,
             'out_nodes': 1,
             'out_glob': 0
         }

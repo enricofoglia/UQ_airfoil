@@ -99,9 +99,9 @@ class DropoutMLP(MiniMLP):
         Returns:
             torch.Tensor: Output tensor of shape (batch_size, targets)
         '''
-        x = self.activation(self.layers[0](x))
+        x = self.dropout(self.activation(self.layers[0](x)))
         for layer in self.layers[1:-1]:
-            x = x + self.activation(layer(x)) # add skip connections
+            x = x + self.dropout(self.activation(layer(x))) # add skip connections
         return self.layers[-1](x)
     
     
@@ -239,8 +239,9 @@ class EncodeProcessDecode(nn.Module):
 
         # processing
         for block in self.processor:
-            node_feature, edge_feature = block(node_feature, edge_index, edge_feature)
-
+            node_update, edge_update = block(node_feature, edge_index, edge_feature)
+            node_feature = node_feature + node_update
+            edge_feature = edge_feature + edge_update
         # decode node features
         y = self.decoder_nodes(node_feature)
 

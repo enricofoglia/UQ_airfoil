@@ -4,6 +4,8 @@ import argparse
 import time
 from datetime import datetime
 
+from functools import partial
+
 import torch 
 from torch.optim import Adam
 from torch.nn import MSELoss
@@ -43,10 +45,10 @@ else:
 
 # root = '/home/daep/e.foglia/Documents/1A/05_uncertainty_quantification/data/AirfRANS' # local
 root = '/home/daep/e.foglia/Documents/02_UQ/01_airfrans/01_data/' # pando
-train_dataset = AirfRANSDataset('full',train=True, root=root, normalize=True, pre_transform=pre_transform, force_reload=True)
+train_dataset = AirfRANSDataset('full',train=True, root=root, normalize=True, pre_transform=pre_transform, force_reload=False)
 mean = train_dataset.glob_mean
 std = train_dataset.glob_std
-test_dataset = AirfRANSDataset('full',train=False, root=root, normalize=(mean, std), pre_transform=pre_transform, force_reload=True)
+test_dataset = AirfRANSDataset('full',train=False, root=root, normalize=(mean, std), pre_transform=pre_transform, force_reload=False)
 
 n_samples = args.samples
 
@@ -70,7 +72,8 @@ print(f' Available device: {device}')
 print( '----------------------------')
 
 model = ModelFactory.create(args).to(device)
-# model.apply(init_weights)
+custom_init = partial(init_weights, std=args.prior_std)
+model.apply(custom_init)
 
 # MAP_sol_file='/home/daep/e.foglia/Documents/02_UQ/01_airfrans/03_results/trained_models/MAP_simple_200_800_64_25_16.pt'
 # model.load_state_dict(torch.load(MAP_sol_file))
@@ -132,19 +135,23 @@ else:
         model=model,
         # optimizer=SGLD,
         # optim_kwargs={'lr':args.lr,
-        #               'weight_decay': 10.0,
-        #               'momentum': 0.98,
-        #               'temperature': 0.1,
-        #               'n_data':len(train_dataset),
-        #               'precond':args.precond,
-        #               'precond_alpha': 0.99,
-        #               'precond_eps': 1e-5},
+                    #   'weight_decay': 0.5/args.prior_std**2,
+                    #  'weight_decay':0.5,
+                    #  'momentum': 0.98,
+                    #  'temperature': 0.001,
+                    #  'n_data':len(train_dataset),
+                    #  'precond':args.precond,
+                    #  'precond_alpha': 0.99,
+                    #  'precond_eps': 1e-5},
         optimizer=Adam,
         optim_kwargs={'lr':args.lr},
         loss_fn=loss,
         scheduler=CosineAnnealingLR,
         scheduler_kwargs={'T_max':epochs,
                           'eta_min':1e-5},
+        # scheduler=PowerDecayLR,
+        # scheduler_kwargs={'gamma':args.gamma,
+        #                   'a':args.lr, 'b':1},
         device=device,
         mcmc=False,
         save_start=150,
@@ -155,7 +162,7 @@ else:
 out_dir = '/home/daep/e.foglia/Documents/02_UQ/01_airfrans/03_results' # pando
 # out_dir = '/home/daep/e.foglia/Documents/1A/05_uncertainty_quantification/scripts/paper/UQ_airfoil/out'
 
-model_name = f"{args.identifier}_{args.model_type}_{args.epochs}_{args.samples}_{args.hidden}_{args.fourier}_{args.batch}_{args.lr}_{args.gamma}_{args.blocks}"
+model_name = f"{args.identifier}_{args.model_type}_{args.epochs}_{args.samples}_{args.hidden}_{args.fourier}_{args.batch}_{args.lr}_{args.gamma}_{args.blocks}_{args.prior_std}"
 
 
 tic = time.time()

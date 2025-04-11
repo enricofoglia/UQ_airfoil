@@ -40,6 +40,7 @@ class Parser:
         self.parser.add_argument('--lr', type=float, default=1e-3, help='initial learning rate')
         self.parser.add_argument('--precond', action='store_true', help='use RMSprop preconditioner')
         self.parser.add_argument('--blocks', type=int, default=4, help='number of processing blocks')
+        self.parser.add_argument('--prior_std', type=float, default=0.1, help='prior distribution standard deviation')
 
         self.args = self.parser.parse_args()
         if print: self.message()
@@ -61,6 +62,7 @@ class Parser:
         print(f'| Batch size    | {self.args.batch:>10d} |')
         print(f'| LR            | {self.args.lr:>10.2e} |')
         print(f'| Gamma         | {self.args.gamma:>10.3f} |')
+        print(f'| Prior std     | {self.args.prior_std:>10.3f} |')
         print(f'| Precond       | {"yes" if self.args.precond else "no":>10s} |')
         if self.args.model_type == 'ensemble':
             print(f'| Ensemble size | {self.args.ens_size:>10d} |')

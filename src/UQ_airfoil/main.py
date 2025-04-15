@@ -21,7 +21,9 @@ from sklearn.model_selection import train_test_split
 from dataset import UniformSampling, FourierEpicycles, TangentVec, AirfRANSDataset, XFoilDataset
 from model import EncodeProcessDecode, ZigZag, Ensemble, MCDropout
 from training import Trainer, EnsembleTrainer, SGLD,pSGLD, PowerDecayLR
-from utils import set_seed, Parser, ModelFactory, init_weights
+from utils import set_seed, Parser, ModelFactory, init_weights, set_safe_types
+
+set_safe_types()
 
 print('+-----------------------------+')
 print("| Current date and time :     |")

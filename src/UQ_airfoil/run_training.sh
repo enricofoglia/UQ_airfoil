@@ -1,4 +1,4 @@
-epochs=20
+epochs=100
 samples=800
 hidden=64
 fourier=25

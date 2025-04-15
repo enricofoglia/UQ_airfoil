@@ -1,4 +1,6 @@
 import argparse
+import inspect
+import sys
 
 import random
 
@@ -8,7 +10,28 @@ import torch
 from torch import nn
 
 from model import ZigZag, Ensemble, MCDropout, EncodeProcessDecode
+from dataset import GeometricData
 
+def set_safe_types():
+    torch_geometric_modules = [
+        module_name for module_name in sys.modules 
+        if module_name.startswith('torch_geometric')
+    ]
+
+    # Collect all classes from these modules
+    safe_classes = []
+    for module_name in torch_geometric_modules:
+        try:
+            module = sys.modules[module_name]
+            for name, obj in inspect.getmembers(module):
+                if inspect.isclass(obj):
+                    safe_classes.append(obj)
+        except:
+            pass
+
+    safe_classes += [GeometricData]
+    # Add all collected classes to safe globals
+    torch.serialization.add_safe_globals(safe_classes)
 
 def count_parameters(model):
     if model.kind == 'ensemble':

@@ -15,7 +15,7 @@ from sklearn.metrics import r2_score
 
 from dataset import XFoilDataset, FourierEpicycles, TangentVec, UniformSampling, AirfRANSDataset, corner_plot
 from model import EncodeProcessDecode, ZigZag, Ensemble, MCDropout
-from utils import count_parameters, set_seed, Parser, ModelFactory
+from utils import count_parameters, set_seed, Parser, ModelFactory, set_safe_types
 from metrics import auce_plot, ece_plot, TemperatureScaling
 # =================================================
 # Matplotlib settings
@@ -33,6 +33,8 @@ plt.rcParams.update({
     'legend.fontsize': 14
 })
 # =================================================
+
+set_safe_types()
 
 set_seed(42)
 parser = Parser(print=True)

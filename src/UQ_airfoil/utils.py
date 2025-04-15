@@ -41,7 +41,8 @@ class Parser:
         self.parser.add_argument('--precond', action='store_true', help='use RMSprop preconditioner')
         self.parser.add_argument('--blocks', type=int, default=4, help='number of processing blocks')
         self.parser.add_argument('--prior_std', type=float, default=0.1, help='prior distribution standard deviation')
-
+        self.parser.add_argument('--init', type=str, default='none', help='initialization method')
+        self.parser.add_argument('--temperature', '-T', type=float, default=1.0, help='posterior temperature')
         self.args = self.parser.parse_args()
         if print: self.message()
 
@@ -63,6 +64,8 @@ class Parser:
         print(f'| LR            | {self.args.lr:>10.2e} |')
         print(f'| Gamma         | {self.args.gamma:>10.3f} |')
         print(f'| Prior std     | {self.args.prior_std:>10.3f} |')
+        print(f'| Temperature   | {self.args.temperature:>10.2e} |')
+        print(f'| Initialization| {self.args.init:>10s} |')
         print(f'| Precond       | {"yes" if self.args.precond else "no":>10s} |')
         if self.args.model_type == 'ensemble':
             print(f'| Ensemble size | {self.args.ens_size:>10d} |')
@@ -119,7 +122,7 @@ class ModelFactory:
 
         return model_dict
 
-def init_weights(m, std=0.1):
+def init_weights(m, method='none', std=0.1):
     """
     Initializes the weights of a PyTorch module with a Gaussian distribution.
     
@@ -127,7 +130,13 @@ def init_weights(m, std=0.1):
         m (torch.nn.Module): The module to initialize the weights for.
     """
     if isinstance(m, nn.Linear) or isinstance(m, nn.Conv2d):
-        torch.nn.init.normal_(m.weight, mean=0.0, std=std)
+        if method == 'gaussian':
+                torch.nn.init.normal_(m.weight, mean=0.0, std=std)
+        elif method == 'he':
+                torch.nn.init.kaiming_normal_(m.weight, nonlinearity='relu')
+        elif method == 'glorot':
+                torch.nn.init.xavier_normal_(m.weight)
+        else:
+                pass
         if m.bias is not None:
             torch.nn.init.constant_(m.bias, 0)    
-   

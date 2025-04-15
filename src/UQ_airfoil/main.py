@@ -72,7 +72,15 @@ print(f' Available device: {device}')
 print( '----------------------------')
 
 model = ModelFactory.create(args).to(device)
-custom_init = partial(init_weights, std=args.prior_std)
+if args.init == 'he':
+	custom_init = partial(init_weights, method='he')
+elif args.init == 'glorot':
+	custom_init = partial(init_weights, method='glorot')
+elif args.init == 'gaussian':
+	custom_init = partial(init_weights, method='gaussian', std=0.1)
+elif args.init == 'none':
+	custom_init = partial(init_weights, method='none')
+
 model.apply(custom_init)
 
 # MAP_sol_file='/home/daep/e.foglia/Documents/02_UQ/01_airfrans/03_results/trained_models/MAP_simple_200_800_64_25_16.pt'
@@ -133,29 +141,29 @@ else:
     trainer = Trainer(
         epochs=epochs,
         model=model,
-        # optimizer=SGLD,
-        # optim_kwargs={'lr':args.lr,
-                    #   'weight_decay': 0.5/args.prior_std**2,
-                    #  'weight_decay':0.5,
-                    #  'momentum': 0.98,
-                    #  'temperature': 0.001,
-                    #  'n_data':len(train_dataset),
-                    #  'precond':args.precond,
-                    #  'precond_alpha': 0.99,
-                    #  'precond_eps': 1e-5},
-        optimizer=Adam,
-        optim_kwargs={'lr':args.lr},
+        optimizer=SGLD,
+        optim_kwargs={'lr':args.lr,
+                      'weight_decay': 0.5/args.prior_std**2,
+                      # 'weight_decay':0.5, #!!!
+                      'momentum': 0.98,
+                      'temperature': args.temperature,
+                      'n_data':len(train_dataset),
+                      'precond':args.precond,
+                      'precond_alpha': 0.99,
+                      'precond_eps': 1e-5},
+        # optimizer=Adam,
+        # optim_kwargs={'lr':args.lr},
         loss_fn=loss,
-        scheduler=CosineAnnealingLR,
-        scheduler_kwargs={'T_max':epochs,
-                          'eta_min':1e-5},
-        # scheduler=PowerDecayLR,
-        # scheduler_kwargs={'gamma':args.gamma,
-        #                   'a':args.lr, 'b':1},
+        # scheduler=CosineAnnealingLR,
+        # scheduler_kwargs={'T_max':epochs,
+        #                  'eta_min':1e-5},
+        scheduler=PowerDecayLR,
+        scheduler_kwargs={'gamma':args.gamma,
+                          'a':args.lr, 'b':1},
         device=device,
-        mcmc=False,
-        save_start=150,
-        save_rate=5
+        mcmc=True,
+        save_start=200,
+        save_rate=10
     )
 
 

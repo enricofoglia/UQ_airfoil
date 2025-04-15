@@ -145,7 +145,7 @@ class Trainer():
 
                     
         if self.mcmc:
-            torch.save(torch.tensor(self.lr_history), 'learning_rate_SGLD.pt')
+            torch.save(torch.tensor(self.lr_history), f'{save_path.stem}_SGDL_lr.pt')
 
         print( '| Training ended                   |')
         print( '+----------------------------------+')

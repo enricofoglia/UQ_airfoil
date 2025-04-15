@@ -16,6 +16,7 @@ import copy
 import torch
 from torch import nn
 from torch import Tensor
+from torch.nn.utils import weight_norm
 
 import torch_scatter
 
@@ -51,7 +52,7 @@ class MiniMLP(nn.Module):
         # Add the input layer
         prev_dim = inputs
         for h_dim in hidden:
-            layers.append(nn.Linear(prev_dim, h_dim))
+            layers.append(weight_norm(nn.Linear(prev_dim, h_dim)))
             prev_dim = h_dim
         
         # Add the output layer

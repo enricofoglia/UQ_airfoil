@@ -9,7 +9,7 @@ from functools import partial
 import torch 
 from torch.optim import Adam
 from torch.nn import MSELoss
-from torch.optim.lr_scheduler import ExponentialLR, CosineAnnealingLR
+from torch.optim.lr_scheduler import ExponentialLR, CosineAnnealingLR, CosineAnnealingWarmRestarts
 
 from torch_geometric.loader import DataLoader
 
@@ -156,16 +156,17 @@ else:
         # optimizer=Adam,
         # optim_kwargs={'lr':args.lr},
         loss_fn=loss,
-        # scheduler=CosineAnnealingLR,
-        # scheduler_kwargs={'T_max':epochs,
-        #                  'eta_min':1e-5},
-        scheduler=PowerDecayLR,
-        scheduler_kwargs={'gamma':args.gamma,
-                          'a':args.lr, 'b':1},
+        scheduler=CosineAnnealingWarmRestarts,
+        scheduler_kwargs={'T_0':50,
+                         'eta_min':0.0,
+                         },
+        # scheduler=PowerDecayLR,
+        # scheduler_kwargs={'gamma':args.gamma,
+        #                   'a':args.lr, 'b':1},
         device=device,
         mcmc=True,
-        save_start=200,
-        save_rate=10
+        save_start=0,
+        save_rate=50
     )
 
 
@@ -203,3 +204,5 @@ ax.set_xlabel('epoch')
 ax.set_ylabel('learning rate $l_r$')
 ax.set_title('Learing rate history')
 plt.savefig(os.path.join(out_dir,f'lr_history_{model_name}.png'), dpi=300)
+
+plt.show()

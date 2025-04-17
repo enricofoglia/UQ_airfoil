@@ -110,16 +110,49 @@ class Trainer():
         r'''Optimize the model. Save the best model in terms of test 
         performances in :obj:`"savefile"`.
         '''
-        print( '+----------------------------------+')
-        print( '| Training started ...             |')
-        print( '+----------------------------------+')
-        print(f'| Total number of epochs : {self.epochs:<8d}|')
-        print( '+----------------------------------+')
 
+        # pretraing phase
+        print( '+----------------------------------+')
+        print( '| Pretraining started ...          |')
+        print( '+----------------------------------+')
+        print( '| Pretraining epochs : 100         |')
+        
+        final_temp = self.optimizer.param_groups[0]['temperature']
+        for group in self.optimizer.param_groups:
+            group['temperature'] = 0
+
+        print( '| Temperature set to 0             |')
+        print( '| No scheduler applied             |')
+        print( '+----------------------------------+')
         self.training_history = []
         self.test_history = []
         self.best_loss = torch.inf
         self.lr_history = []
+
+        for epoch in tqdm(range(80)):
+            self.model.train()
+            self.training_history.append(self._train_epoch(train_loader, self.model))
+            self.test_history.append(self._test_epoch(test_loader, self.model))
+            self.lr_history.append(self.optimizer.param_groups[0]['lr'])
+
+        for epoch in tqdm(range(20)):
+            for group in self.optimizer.param_groups:
+                group['temperature'] += final_temp/20.0
+
+            self.model.train()
+            self.training_history.append(self._train_epoch(train_loader, self.model))
+            self.test_history.append(self._test_epoch(test_loader, self.model))
+            self.lr_history.append(self.optimizer.param_groups[0]['lr'])
+
+        print()
+        print( '+----------------------------------+')
+        print( '| Training started ...             |')
+        print( '+----------------------------------+')
+        print(f'| Total number of epochs : {self.epochs:<8d}|')
+        print(f'| Temperature set to {self.optimizer.param_groups[0]["temperature"]:<8.3f}      |')
+        print( '+----------------------------------+')
+
+        
 
         save_path = Path(savefile)
         for epoch in tqdm(range(self.epochs)):
@@ -127,6 +160,7 @@ class Trainer():
             self.training_history.append(self._train_epoch(train_loader, self.model))
             self.test_history.append(self._test_epoch(test_loader, self.model))
             # print(f' Current loss = {self.training_history[-1]}')
+            self.lr_history.append(self.optimizer.param_groups[0]['lr'])
 
             if self.scheduler is not None:
                 self.scheduler.step()

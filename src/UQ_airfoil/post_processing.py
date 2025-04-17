@@ -1,4 +1,5 @@
 import random
+import os
 
 from tqdm import tqdm
 
@@ -23,7 +24,7 @@ plt.rcParams.update({
     # "text.usetex": True,
     "font.family": "sans-serif",
     "font.sans-serif": ["Computer Modern Sans Serif"],
-    # "text.latex.preamble": r"\usepackage{amsmath,amsfonts}\usepackage[cm]{sfmath}",
+    "text.latex.preamble": r"\usepackage{amsmath,amsfonts}\usepackage[cm]{sfmath}",
     'axes.linewidth' : 2,
     'lines.linewidth' : 2,
     'axes.labelsize' : 16,
@@ -57,8 +58,8 @@ pre_transform = transforms.Compose((UniformSampling(n=n_points), FourierEpicycle
 # root = '/home/daep/e.foglia/Documents/1A/05_uncertainty_quantification/data/airfoils/train_shapes'
 # dataset = XFoilDataset(root, pre_transform=pre_transform, force_reload=True)
 # root = '/home/daep/e.foglia/Documents/1A/05_uncertainty_quantification/data/AirfRANS' # pando
-# root = '/home/daep/e.foglia/Documents/1A/05_uncertainty_quantification/data/AirfRANS' # local
-root = '/home/daep/e.foglia/Documents/02_UQ/01_airfrans/01_data/' # pando
+root = '/home/daep/e.foglia/Documents/1A/05_uncertainty_quantification/data/AirfRANS' # local
+# root = '/home/daep/e.foglia/Documents/02_UQ/01_airfrans/01_data/' # pando
 
 train_dataset = AirfRANSDataset('full', True, root, normalize=True, pre_transform=pre_transform, force_reload=False)
 train_glob = train_dataset.get_global()
@@ -117,10 +118,19 @@ model = ModelFactory.create(args).to('cpu')
 #             p=0.1
 #             )
 
-model.load_state_dict(torch.load('../../out/trained_models/MAP_simple_200_800_64_25_16.pt',
-                                 map_location=torch.device('cpu')))
-# for n,single_model in enumerate(model):
-    # single_model.load_state_dict(torch.load(f'../../out/ensemble/test_full_airfrans_{n}.pt', map_location=torch.device('cpu')))
+# model.load_state_dict(torch.load('../../out/trained_models/MAP_simple_200_800_64_25_16.pt',
+                                #  map_location=torch.device('cpu')))
+ens_dir = '/home/daep/e.foglia/Documents/1A/05_uncertainty_quantification/scripts/paper/UQ_airfoil/out/trained_models/SGLD_warm_restarts'
+if model.kind == 'ensemble':
+    # for n,single_model in enumerate(model):
+    #     single_model.load_state_dict(torch.load(f'../../out/trained_models/SGDLwn/wn_map_simple_250_800_64_25_16_0.001_0.33_4_1.0SGLD_{n}.pt', map_location=torch.device('cpu')))
+    for n, fname in enumerate(os.listdir(ens_dir)):
+        print(fname, model[n])
+        if fname.endswith('.pt'):
+            single_model = model[n]
+            single_model.load_state_dict(torch.load(os.path.join(ens_dir,fname), map_location=torch.device('cpu')))
+else:
+    model.load_state_dict(torch.load(f'model.pt', map_location=torch.device('cpu')))
 
 n_params = count_parameters(model)
 print( '+---------------------------------+')

@@ -143,28 +143,28 @@ else:
     trainer = Trainer(
         epochs=epochs,
         model=model,
-        optimizer=SGLD,
-        optim_kwargs={'lr':args.lr,
-                      'weight_decay': 0.5/args.prior_std**2,
-                      # 'weight_decay':0.5, #!!!
-                      'momentum': 0.98,
-                      'temperature': args.temperature,
-                      'n_data':len(train_dataset),
-                      'precond':args.precond,
-                      'precond_alpha': 0.99,
-                      'precond_eps': 1e-5},
-        # optimizer=Adam,
-        # optim_kwargs={'lr':args.lr},
+        # optimizer=SGLD,
+        # optim_kwargs={'lr':args.lr,
+        #               'weight_decay': 0.5/args.prior_std**2,
+        #               # 'weight_decay':0.5, #!!!
+        #               'momentum': 0.98,
+        #               'temperature': args.temperature,
+        #               'n_data':len(train_dataset),
+        #               'precond':args.precond,
+        #               'precond_alpha': 0.99,
+        #               'precond_eps': 1e-5},
+        optimizer=Adam,
+        optim_kwargs={'lr':args.lr},
         loss_fn=loss,
-        scheduler=CosineAnnealingWarmRestarts,
-        scheduler_kwargs={'T_0':50,
-                         'eta_min':0.0,
+        scheduler=CosineAnnealingLR,
+        scheduler_kwargs={'T_max':epochs,
+                         'eta_min':1e-4,
                          },
         # scheduler=PowerDecayLR,
         # scheduler_kwargs={'gamma':args.gamma,
         #                   'a':args.lr, 'b':1},
         device=device,
-        mcmc=True,
+        mcmc=False,
         save_start=0,
         save_rate=50
     )
@@ -177,7 +177,7 @@ model_name = f"{args.identifier}_{args.model_type}_{args.epochs}_{args.samples}_
 
 
 tic = time.time()
-trainer.fit(train_loader, test_loader, os.path.join(out_dir,'trained_models',f'{model_name}.pt'))
+trainer.fit(train_loader, test_loader, os.path.join(out_dir,'trained_models',f'{model_name}.pt'), pretrain=False)
 toc = time.time()
 
 formatted_time = time.strftime("%H:%M:%S", time.gmtime(toc-tic))

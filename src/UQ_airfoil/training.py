@@ -76,7 +76,7 @@ class Trainer():
             weight:Optional[float]=0.01,
             mcmc:Optional[bool]=False,
             save_rate:Optional[int]=1,
-            save_start:Optional[int]=0
+            save_start:Optional[int]=0,
             ) -> None:
         
         self.epochs = epochs
@@ -106,50 +106,52 @@ class Trainer():
         self.save_rate = save_rate
 
     def fit(self, train_loader:DataLoader, test_loader:DataLoader, 
-            savefile:Optional[str]='out/best_model.pt')-> None:
+            savefile:Optional[str]='out/best_model.pt', pretrain:Optional[bool]=True)-> None:
         r'''Optimize the model. Save the best model in terms of test 
         performances in :obj:`"savefile"`.
         '''
-
-        # pretraing phase
-        print( '+----------------------------------+')
-        print( '| Pretraining started ...          |')
-        print( '+----------------------------------+')
-        print( '| Pretraining epochs : 100         |')
-        
-        final_temp = self.optimizer.param_groups[0]['temperature']
-        for group in self.optimizer.param_groups:
-            group['temperature'] = 0
-
-        print( '| Temperature set to 0             |')
-        print( '| No scheduler applied             |')
-        print( '+----------------------------------+')
         self.training_history = []
         self.test_history = []
         self.best_loss = torch.inf
         self.lr_history = []
-
-        for epoch in tqdm(range(80)):
-            self.model.train()
-            self.training_history.append(self._train_epoch(train_loader, self.model))
-            self.test_history.append(self._test_epoch(test_loader, self.model))
-            self.lr_history.append(self.optimizer.param_groups[0]['lr'])
-
-        for epoch in tqdm(range(20)):
+        
+        if pretrain:
+            # pretraing phase
+            print( '+----------------------------------+')
+            print( '| Pretraining started ...          |')
+            print( '+----------------------------------+')
+            print( '| Pretraining epochs : 100         |')
+            
+            final_temp = self.optimizer.param_groups[0]['temperature']
             for group in self.optimizer.param_groups:
-                group['temperature'] += final_temp/20.0
+                group['temperature'] = 0
 
-            self.model.train()
-            self.training_history.append(self._train_epoch(train_loader, self.model))
-            self.test_history.append(self._test_epoch(test_loader, self.model))
-            self.lr_history.append(self.optimizer.param_groups[0]['lr'])
+            print( '| Temperature set to 0             |')
+            print( '| No scheduler applied             |')
+            print( '+----------------------------------+')
+            
+
+            for epoch in tqdm(range(80)):
+                self.model.train()
+                self.training_history.append(self._train_epoch(train_loader, self.model))
+                self.test_history.append(self._test_epoch(test_loader, self.model))
+                self.lr_history.append(self.optimizer.param_groups[0]['lr'])
+
+            for epoch in tqdm(range(20)):
+                for group in self.optimizer.param_groups:
+                    group['temperature'] += final_temp/20.0
+
+                self.model.train()
+                self.training_history.append(self._train_epoch(train_loader, self.model))
+                self.test_history.append(self._test_epoch(test_loader, self.model))
+                self.lr_history.append(self.optimizer.param_groups[0]['lr'])
 
         print()
         print( '+----------------------------------+')
         print( '| Training started ...             |')
         print( '+----------------------------------+')
         print(f'| Total number of epochs : {self.epochs:<8d}|')
-        print(f'| Temperature set to {self.optimizer.param_groups[0]["temperature"]:<8.3f}      |')
+        print(f'| Temperature set to {self.optimizer.param_groups[0].get("temperature", torch.nan):<8.3f}      |')
         print( '+----------------------------------+')
 
         

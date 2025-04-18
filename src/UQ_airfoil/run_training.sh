@@ -1,12 +1,12 @@
-epochs=250
+epochs=150
 samples=800
 hidden=64
 fourier=25
 batch=16
-model_type="simple"
+model_type="zigzag"
 z0=5.0
 p=0.1
-identifier="warm_restarts"
+identifier="wn"
 lr=0.001
 gamma=0.33
 init="he"

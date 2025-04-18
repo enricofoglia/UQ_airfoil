@@ -149,7 +149,9 @@ indices = random.sample(range(len(test_dataset)),k=4,)
 print(f'| Selected indices {indices}')
 print( '+---------------------------------+')
 
+
 # indices[0] = 22
+# model.train()
 
 for i, ind in enumerate(indices):
     row = i//2
@@ -158,6 +160,7 @@ for i, ind in enumerate(indices):
     with torch.no_grad():
         if model.kind == 'dropout':
             pred, var = model(graph, T=50, return_var=True)
+            print(var)
         else: 
             try:
                 pred, var = model(graph, return_var=True)
@@ -171,7 +174,25 @@ for i, ind in enumerate(indices):
 
     ax[row,col].plot(graph.pos[:,0], graph.y, color='k', label='ground truth')
     ax[row,col].plot(graph.pos[:,0], pred.squeeze(), color='tab:blue', linestyle='--', label='prediction')
-    ax[row, col].fill_between(graph.pos[:,0], pred.squeeze()+std.squeeze(), pred.squeeze()-std.squeeze(), alpha=0.6)
+
+    x_coords = graph.pos[:,0]
+    midpoint = np.argmin(x_coords)  # This should find the trailing edge
+
+    # Upper surface (first half of the data)
+    upper_x = x_coords[:midpoint+1]
+    upper_pred = pred.squeeze()[:midpoint+1]
+    upper_std = std.squeeze()[:midpoint+1]
+
+    # Lower surface (second half of the data)
+    lower_x = x_coords[midpoint:]
+    lower_pred = pred.squeeze()[midpoint:]
+    lower_std = std.squeeze()[midpoint:]
+
+    # Use proper zorder to ensure the uncertainty band doesn't disappear when crossing
+    ax[row,col].fill_between(upper_x, upper_pred+upper_std, upper_pred-upper_std, 
+                alpha=0.3, color='tab:blue', zorder=1)
+    ax[row,col].fill_between(lower_x, lower_pred+lower_std, lower_pred-lower_std, 
+                alpha=0.3, color='tab:blue', label='uncertainty (±1σ)', zorder=2)
     ax[row,col].set_ylim(ax[row,col].get_ylim()[::-1])
     if row == 1:
         ax[row,col].set_xlabel(r'$x/c$ [-]')
@@ -187,11 +208,67 @@ plt.show()
 #     plt.savefig(f'../out/sample{ind}.png')
 #     plt.close()
 
+preds = []
+gt    = []
+std_list = []
+with torch.no_grad():
+    for graph in tqdm(test_dataset, desc='Processing dataset ...'):
+        if model.kind == 'dropout':
+            pred, var = model(graph, T=50, return_var=True)
+        else:
+            try:
+                pred, var = model(graph, return_var=True)
+            except TypeError:
+                pred = model(graph)
+                var = torch.zeros_like(pred)
+        gt.append(graph.y.numpy())
+        preds.append(pred.numpy())
+        std_list.append(torch.sqrt(var).numpy())
+
+preds = np.concatenate(preds).squeeze()
+gts = np.concatenate(gt).squeeze()
+stds = np.concatenate(std_list).squeeze()
+
+ind_min = np.argmin(np.sum(np.stack(std_list),axis=1))
+ind_max = np.argmax(np.sum(np.stack(std_list),axis=1))
+print(f'| Min uncertainty index {ind_min} |')
+# +-----------------------------+
+# | Minimum uncertainty sample  |
+# +-----------------------------+
+graph = test_dataset[ind_min]
+with torch.no_grad():
+    if model.kind == 'dropout':
+        pred, var = model(graph, T=50, return_var=True)
+    else:
+        try:
+            pred, var = model(graph, return_var=True)
+        except TypeError:
+            pred = model(graph)
+            var = torch.zeros_like(pred)
+    std = torch.sqrt(var)
 # single plot with uncertainty
 fig, ax = plt.subplots(figsize=(8,5))
 ax.plot(graph.pos[:,0], graph.y, color='k', label='ground truth')
 ax.plot(graph.pos[:,0], pred.squeeze(), color='tab:blue', linestyle='--', label='prediction')
-ax.fill_between(graph.pos[:,0], pred.squeeze()+std.squeeze(), pred.squeeze()-std.squeeze(), alpha=0.6)
+# Sort the x values to ensure proper order for fill_between
+x_coords = graph.pos[:,0]
+midpoint = np.argmin(x_coords)  # This should find the trailing edge
+
+# Upper surface (first half of the data)
+upper_x = x_coords[:midpoint+1]
+upper_pred = pred.squeeze()[:midpoint+1]
+upper_std = std.squeeze()[:midpoint+1]
+
+# Lower surface (second half of the data)
+lower_x = x_coords[midpoint:]
+lower_pred = pred.squeeze()[midpoint:]
+lower_std = std.squeeze()[midpoint:]
+
+# Use proper zorder to ensure the uncertainty band doesn't disappear when crossing
+ax.fill_between(upper_x, upper_pred+upper_std, upper_pred-upper_std, 
+            alpha=0.3, color='tab:blue', zorder=1)
+ax.fill_between(lower_x, lower_pred+lower_std, lower_pred-lower_std, 
+            alpha=0.3, color='tab:blue', label='uncertainty (±1σ)', zorder=2)
 ax.set_xlabel(r'$x/c$ [-]')
 ax.set_ylabel(r'$c_p$ [-]')
 ax.set_ylim(ax.get_ylim()[::-1])
@@ -211,80 +288,209 @@ ax2.yaxis.set_tick_params(labelsize=10, direction='in')
 ax2.set_xlim([0,1])
 ax2.set_ylim([0,1])
 ax2.text(0.05, 0.85, f'AUCE={auce:.2f}', fontsize=12)
+plt.savefig(os.path.join(OUT_DIR,f'{args.identifier}_min_uncertainty.pdf'), bbox_inches='tight')
 
-
-preds = []
-gt    = []
-std_list = []
+# +-----------------------------+
+# | Maximum uncertainty sample  |
+# +-----------------------------+
+graph = test_dataset[ind_max]
 with torch.no_grad():
-    for graph in tqdm(test_dataset, desc='Processing dataset ...'):
-        if model.kind == 'dropout':
-            pred, var = model(graph, T=50, return_var=True)
-        else: 
+    if model.kind == 'dropout':
+        pred, var = model(graph, T=50, return_var=True)
+    else:
+        try:
             pred, var = model(graph, return_var=True)
-        gt.append(graph.y.numpy())
-        preds.append(pred.numpy())
-        std_list.append(torch.sqrt(var).numpy())
+        except TypeError:
+            pred = model(graph)
+            var = torch.zeros_like(pred)
+    std = torch.sqrt(var)
 
-preds = np.concatenate(preds).squeeze()
-gt = np.concatenate(gt).squeeze()
-std = np.concatenate(std_list).squeeze()
+# single plot with uncertainty
+fig, ax = plt.subplots(figsize=(8,5))
+ax.plot(graph.pos[:,0], graph.y, color='k', label='ground truth')
+ax.plot(graph.pos[:,0], pred.squeeze(), color='tab:blue', linestyle='--', label='prediction')
+# Sort the x values to ensure proper order for fill_between
+x_coords = graph.pos[:,0]
+midpoint = np.argmin(x_coords)  # This should find the trailing edge
 
-r2 = r2_score(gt, preds)
+# Upper surface (first half of the data)
+upper_x = x_coords[:midpoint+1]
+upper_pred = pred.squeeze()[:midpoint+1]
+upper_std = std.squeeze()[:midpoint+1]
+
+# Lower surface (second half of the data)
+lower_x = x_coords[midpoint:]
+lower_pred = pred.squeeze()[midpoint:]
+lower_std = std.squeeze()[midpoint:]
+
+# Use proper zorder to ensure the uncertainty band doesn't disappear when crossing
+ax.fill_between(upper_x, upper_pred+upper_std, upper_pred-upper_std, 
+            alpha=0.3, color='tab:blue', zorder=1)
+ax.fill_between(lower_x, lower_pred+lower_std, lower_pred-lower_std, 
+            alpha=0.3, color='tab:blue', label='uncertainty (±1σ)', zorder=2)
+ax.set_xlabel(r'$x/c$ [-]')
+ax.set_ylabel(r'$c_p$ [-]')
+ax.set_ylim(ax.get_ylim()[::-1])
+
+# add calibration plot
+auce, p_err, p_pred = auce_plot(graph.y.numpy(),pred.squeeze().numpy(),
+                                std.squeeze().numpy(), plot=False, get_values=True)
+left, bottom, width, height = 0.65, 0.55, 0.23, 0.3
+ax2 = fig.add_axes([left, bottom, width, height])
+ax2.plot(p_err, p_pred)
+ax2.fill_between(p_err, p_pred, p_err, color='tab:blue', alpha=0.3)
+ax2.plot([0,1],[0,1],'k--')
+ax2.set_ylabel('True probability', fontsize=12, labelpad=1.0)
+ax2.set_xlabel('Predicted probability', fontsize=12, labelpad=1.0)
+ax2.xaxis.set_tick_params(labelsize=10, direction='in')
+ax2.yaxis.set_tick_params(labelsize=10, direction='in')
+ax2.set_xlim([0,1])
+ax2.set_ylim([0,1])
+ax2.text(0.05, 0.85, f'AUCE={auce:.2f}', fontsize=12)
+plt.savefig(os.path.join(OUT_DIR,f'{args.identifier}_max_uncertainty.pdf'), bbox_inches='tight')
+
+r2 = r2_score(gts, preds)
+mse = np.mean((gts-preds)**2)
 print( '-------------------')
 print(f' R2 score : {r2:>5.3f}')
+print(f' MSE      : {mse:>5.3f}')
 print( '-------------------')
 
 fig, ax = plt.subplots()
-ax.scatter(preds[::100], gt[::100], alpha=0.5, s=10)
-ax.plot(gt[::100],gt[::100], 'k--', label='perfect fit')
+ax.scatter(preds[::100], gts[::100], alpha=0.5, s=10)
+ax.plot(gts[::100],gts[::100], 'k--', label='perfect fit')
 ax.set_xlabel('predicted')
 ax.set_ylabel('true')
 ax.set_title(f'Correlation plot; $R^2$ score = {r2:.2f}')
 
 plt.show()
-exit(0)
+# exit(0)
 # auce
-auce_plot(gt[::10], preds[::10], std[::10])
-ece_plot(gt[::10], preds[::10], std[::10], B=8, binning='quantile')
+auce_plot(gts[::10], preds[::10], stds[::10])
+plt.savefig(os.path.join(OUT_DIR,f'{args.identifier}_auce.pdf'), bbox_inches='tight')
+# ece_plot(gts[::10], preds[::10], stds[::10], B=8, binning='quantile')
+# plt.show()
+# # temperature scaling
+# scaler = TemperatureScaling()
+# s = np.sqrt(scaler.fit(preds, std**2, gt))
+# print(f'Scaling factor s = {s}')
+# print(scaler.res)
+# s_list = np.logspace(start=-2, stop = 10, num=100, base=10)
+# loss = np.array([scaler._loss(ss, preds, std**2, gt) for ss in s_list])
 
-# temperature scaling
-scaler = TemperatureScaling()
-s = np.sqrt(scaler.fit(preds, std**2, gt))
-print(f'Scaling factor s = {s}')
-print(scaler.res)
-s_list = np.logspace(start=-2, stop = 10, num=100, base=10)
-loss = np.array([scaler._loss(ss, preds, std**2, gt) for ss in s_list])
+# plt.figure()
+# plt.loglog(s_list,loss)
+# plt.show()
+# auce_plot(gt[::10], preds[::10], s*std[::10])
+# ece_plot(gt[::10], preds[::10], s*std[::10], B=8, binning='quantile')
 
-plt.figure()
-plt.loglog(s_list,loss)
+# graph = test_dataset[ind]
+# with torch.no_grad():
+#     if model.kind == 'dropout':
+#         pred, var = model(graph, T=50, return_var=True)
+#     else: 
+#         try:
+#             pred, var = model(graph, return_var=True)
+#         except TypeError:
+#             pred = model(graph)
+#             var= torch.zeros_like(pred)
+
+
+# std = torch.sqrt(var)
+
+# fig, ax = plt.subplots()
+# ax.plot(graph.pos[:,0], graph.y, color='k', label='ground truth')
+# ax.plot(graph.pos[:,0], pred.squeeze(), color='tab:blue', linestyle='--', label='prediction')
+# x_coords = graph.pos[:,0]
+# midpoint = np.argmin(x_coords)  # This should find the trailing edge
+
+# # Upper surface (first half of the data)
+# upper_x = x_coords[:midpoint+1]
+# upper_pred = pred.squeeze()[:midpoint+1]
+# upper_std = std.squeeze()[:midpoint+1]
+
+# # Lower surface (second half of the data)
+# lower_x = x_coords[midpoint:]
+# lower_pred = pred.squeeze()[midpoint:]
+# lower_std = std.squeeze()[midpoint:]
+
+# # Use proper zorder to ensure the uncertainty band doesn't disappear when crossing
+# ax.fill_between(upper_x, upper_pred+upper_std, upper_pred-upper_std, 
+#             alpha=0.3, color='tab:blue', zorder=1)
+# ax.fill_between(lower_x, lower_pred+lower_std, lower_pred-lower_std, 
+#             alpha=0.3, color='tab:blue', label='uncertainty (±1σ)', zorder=2)
+# ax.set_ylim(ax.get_ylim()[::-1])
+# ax.set_xlabel(r'$x/c$ [-]')
+# ax.set_ylabel(r'$c_p$ [-]')
+    
+# ax.legend()
+
+# plt.show()
+
+# recalibrate
+from sklearn.calibration import IsotonicRegression
+ir = IsotonicRegression(out_of_bounds='clip')
+ir.fit((preds-gts)**2, stds**2)
+
+# plot calibration curve
+new_std = np.sqrt(ir.predict((preds-gts)**2))
+auce_plot(gts[::10], preds[::10], new_std[::10])
+plt.savefig(os.path.join(OUT_DIR,f'{args.identifier}_auce_recalibrated.pdf'), bbox_inches='tight')
 plt.show()
-auce_plot(gt[::10], preds[::10], s*std[::10])
-ece_plot(gt[::10], preds[::10], s*std[::10], B=8, binning='quantile')
-
-graph = test_dataset[ind]
+graph = test_dataset[ind_max]
 with torch.no_grad():
     if model.kind == 'dropout':
         pred, var = model(graph, T=50, return_var=True)
-    else: 
+    else:
         try:
             pred, var = model(graph, return_var=True)
         except TypeError:
             pred = model(graph)
-            var= torch.zeros_like(pred)
+            var = torch.zeros_like(pred)
 
-
-std = torch.sqrt(var)
-
-fig, ax = plt.subplots()
+std = np.sqrt(ir.predict(var))
+# single plot with uncertainty
+fig, ax = plt.subplots(figsize=(8,5))
 ax.plot(graph.pos[:,0], graph.y, color='k', label='ground truth')
 ax.plot(graph.pos[:,0], pred.squeeze(), color='tab:blue', linestyle='--', label='prediction')
-ax.fill_between(graph.pos[:,0], pred.squeeze()+s*std.squeeze(), pred.squeeze()-s*std.squeeze(), alpha=0.6)
-ax.set_ylim(ax.get_ylim()[::-1])
+# Sort the x values to ensure proper order for fill_between
+x_coords = graph.pos[:,0]
+midpoint = np.argmin(x_coords)  # This should find the trailing edge
+
+# Upper surface (first half of the data)
+upper_x = x_coords[:midpoint+1]
+upper_pred = pred.squeeze()[:midpoint+1]
+upper_std = std.squeeze()[:midpoint+1]
+
+# Lower surface (second half of the data)
+lower_x = x_coords[midpoint:]
+lower_pred = pred.squeeze()[midpoint:]
+lower_std = std.squeeze()[midpoint:]
+
+# Use proper zorder to ensure the uncertainty band doesn't disappear when crossing
+ax.fill_between(upper_x, upper_pred+upper_std, upper_pred-upper_std, 
+            alpha=0.3, color='tab:blue', zorder=1)
+ax.fill_between(lower_x, lower_pred+lower_std, lower_pred-lower_std, 
+            alpha=0.3, color='tab:blue', label='uncertainty (±1σ)', zorder=2)
 ax.set_xlabel(r'$x/c$ [-]')
 ax.set_ylabel(r'$c_p$ [-]')
-    
-ax.legend()
+ax.set_ylim(ax.get_ylim()[::-1])
 
+# add calibration plot
+auce, p_err, p_pred = auce_plot(graph.y.numpy(),pred.squeeze().numpy(),
+                                std.squeeze(), plot=False, get_values=True)
+left, bottom, width, height = 0.65, 0.55, 0.23, 0.3
+ax2 = fig.add_axes([left, bottom, width, height])
+ax2.plot(p_err, p_pred)
+ax2.fill_between(p_err, p_pred, p_err, color='tab:blue', alpha=0.3)
+ax2.plot([0,1],[0,1],'k--')
+ax2.set_ylabel('True probability', fontsize=12, labelpad=1.0)
+ax2.set_xlabel('Predicted probability', fontsize=12, labelpad=1.0)
+ax2.xaxis.set_tick_params(labelsize=10, direction='in')
+ax2.yaxis.set_tick_params(labelsize=10, direction='in')
+ax2.set_xlim([0,1])
+ax2.set_ylim([0,1])
+ax2.text(0.05, 0.85, f'AUCE={auce:.2f}', fontsize=12)
+plt.savefig(os.path.join(OUT_DIR,f'{args.identifier}_max_uncertainty_recalibrated.pdf'), bbox_inches='tight')
 plt.show()
 

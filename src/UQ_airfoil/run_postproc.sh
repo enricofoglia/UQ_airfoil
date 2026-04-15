@@ -9,7 +9,7 @@ samples=800
 hidden=64
 fourier=25
 batch=16
-model_type="ensemble"
+model_type="zigzag"
 z0=5.0
 p=0.1
 identifier="warm_restarts"
@@ -26,7 +26,7 @@ LOG_FILE="${LOG_DIR}postproc_${identifier}_${model_type}_${epochs}_${samples}_${
 
 # Model path on Pando
 MODEL_DIR="/home/daep/e.foglia/Documents/02_UQ/01_airfrans/03_results/trained_models/"
-MODEL_NAME="warm_restarts_simple_250_800_64_25_16_0.001_0.33_4_1.0SGLD_0.pt"
+MODEL_NAME="repeat_1_zigzag_150_800_64_25_16_0.005_0.33_4_1.0_5.0.pt"
 MODEL_PATH="${MODEL_DIR}${MODEL_NAME}"
 
 # Local model path

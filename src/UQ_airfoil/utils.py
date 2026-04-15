@@ -163,3 +163,32 @@ def init_weights(m, method='none', std=0.1):
                 pass
         if m.bias is not None:
             torch.nn.init.constant_(m.bias, 0)    
+
+
+def compute_lift(cp, x, y, c=1.0, rho=1.0, U=1.0):
+    """
+    Computes the lift force on an airfoil using the pressure integration method.
+    
+    Args:
+        cp (numpy.ndarray): The pressure coefficient.
+        x (numpy.ndarray): The x-coordinates of the airfoil surface.
+        y (numpy.ndarray): The y-coordinates of the airfoil surface.
+        c (float): The chord length of the airfoil.
+        rho (float): The density of the fluid (default is 1.0).
+        U (float): The freestream velocity (default is 1.0).
+        
+    Returns:
+        float: The lift force on the airfoil.
+    """
+    # Calculate segment lengths and directions
+    deltax = x - np.roll(x, 1)
+    deltay = y - np.roll(y, 1)
+    l = np.sqrt(deltax**2 + deltay**2)
+    
+    ny = deltax / l
+    
+    cp_avg = 0.5 * (cp + np.roll(cp, 1))
+
+    fy = 0.5 * c * rho * U**2 * np.sum(cp_avg * ny * l)
+        
+    return fy

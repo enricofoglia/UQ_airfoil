@@ -14,6 +14,8 @@ import torch
 from scipy.integrate import simpson
 import scipy.stats as stats
 
+from sklearn.linear_model import LinearRegression
+
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -163,7 +165,7 @@ def ece_plot(y_test:np.ndarray, mu:np.ndarray, var:np.ndarray,
     if get_values: return ence, rmv, rmse
     else: return ence
 
-class TemperatureScaling():
+class _TemperatureScaling_():
     def __init__(self,beta=0.5) -> None:
         self.beta = beta
 
@@ -192,3 +194,27 @@ class TemperatureScaling():
         preds, var, targets = args
         T = len(preds)
         return 1/2/s - 1/T*np.sum((targets-preds)**2/(2*s**2*var))
+    
+class TemperatureScaling:
+    def __init__(self,intercept:bool=False) -> None:
+        self.T = 1.0
+        self.intercept = intercept
+        
+        self._fitted = False
+        self._lr = LinearRegression(fit_intercept=self.intercept, positive=True)
+        self.eps = 1e-6
+    def fit(self, preds, var, targets, loss='nll'):
+        u = np.maximum(var, self.eps)
+        if loss == 'nll':
+            self.T = np.mean((preds-targets)**2/u)
+        elif loss == 'ece':
+            self._lr.fit(u.reshape(-1, 1), (preds-targets)**2)
+            self.T = self._lr.coef_[0]
+        else:
+            raise ValueError('loss must be either nll or ece')
+        self._fitted = True
+
+    def predict(self, var):
+        if not self._fitted:
+            raise ValueError('Model not fitted yet.')
+        return self.T*var

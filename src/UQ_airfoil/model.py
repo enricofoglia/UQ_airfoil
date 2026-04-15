@@ -331,7 +331,8 @@ class ZigZag(EncodeProcessDecode):
             else:
                 y1 = self.forward(data)
                 y2 = self.forward(data, y=y1.detach())
-            return 0.5*(y1+y2), 0.25*(y1-y2)**2
+            # return 0.5*(y1+y2), 0.25*(y1-y2)**2
+            return y1, torch.abs(y1*(y1-y2))
 
 
 class Ensemble(nn.Module):

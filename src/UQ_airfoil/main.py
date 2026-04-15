@@ -134,9 +134,9 @@ if args.model_type ==  'ensemble':
         optimizer='adam',
         optim_kwargs={'lr':initial_lr},
         loss_fn=loss,
-        scheduler='exponential',
-        scheduler_kwargs={'gamma':1/2,
-                          'a':1e-5, 'b':1}
+        scheduler='cosine_annealing',
+        scheduler_kwargs={'T_max':epochs,
+                          'eta_min':1e-4}
     )
 
 else:
@@ -156,8 +156,8 @@ else:
         optimizer=Adam,
         optim_kwargs={'lr':args.lr},
         loss_fn=loss,
-        scheduler=CosineAnnealingLR,
-        scheduler_kwargs={'T_max':epochs,
+        scheduler=CosineAnnealingWarmRestarts,
+        scheduler_kwargs={'T_0':epochs,
                          'eta_min':1e-4,
                          },
         # scheduler=PowerDecayLR,
@@ -165,15 +165,15 @@ else:
         #                   'a':args.lr, 'b':1},
         device=device,
         mcmc=False,
-        save_start=0,
-        save_rate=50
+        save_start=49,
+        save_rate=50,
     )
 
 
 # out_dir = '/home/daep/e.foglia/Documents/02_UQ/01_airfrans/03_results' # pando
 out_dir = '/home/daep/e.foglia/Documents/1A/05_uncertainty_quantification/scripts/paper/UQ_airfoil/out'
 
-model_name = f"{args.identifier}_{args.model_type}_{args.epochs}_{args.samples}_{args.hidden}_{args.fourier}_{args.batch}_{args.lr}_{args.gamma}_{args.blocks}_{args.prior_std}"
+model_name = f"{args.identifier}_{args.model_type}_{args.epochs}_{args.samples}_{args.hidden}_{args.fourier}_{args.batch}_{args.lr}_{args.gamma}_{args.blocks}_{args.prior_std}_{args.z0}"
 
 
 tic = time.time()

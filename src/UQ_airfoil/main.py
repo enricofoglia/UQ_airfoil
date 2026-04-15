@@ -2,11 +2,14 @@ import os
 import argparse
 
 import time
+from datetime import datetime
+
+from functools import partial
 
 import torch 
 from torch.optim import Adam
 from torch.nn import MSELoss
-from torch.optim.lr_scheduler import ExponentialLR
+from torch.optim.lr_scheduler import ExponentialLR, CosineAnnealingLR, CosineAnnealingWarmRestarts
 
 from torch_geometric.loader import DataLoader
 
@@ -18,7 +21,14 @@ from sklearn.model_selection import train_test_split
 from dataset import UniformSampling, FourierEpicycles, TangentVec, AirfRANSDataset, XFoilDataset
 from model import EncodeProcessDecode, ZigZag, Ensemble, MCDropout
 from training import Trainer, EnsembleTrainer, SGLD,pSGLD, PowerDecayLR
-from utils import set_seed, Parser, ModelFactory, init_weights
+from utils import set_seed, Parser, ModelFactory, init_weights, set_safe_types
+
+set_safe_types()
+
+print('+-----------------------------+')
+print("| Current date and time :     |")
+print(f'| {datetime.now().strftime("%Y-%m-%d %H:%M:%S")} |')
+print('+-----------------------------+')
 
 parser = Parser(print=True)
 args = parser.args
@@ -30,10 +40,13 @@ args = parser.args
 
 N = args.fourier
 n_points = 250
-pre_transform = transforms.Compose((UniformSampling(n=n_points), FourierEpicycles(n=N), TangentVec(), Distance()))
+if N == 0:
+    pre_transform = transforms.Compose((UniformSampling(n=n_points), TangentVec(), Distance()))
+else:
+    pre_transform = transforms.Compose((UniformSampling(n=n_points), FourierEpicycles(n=N), TangentVec(), Distance()))
 
-# root = '/home/daep/e.foglia/Documents/1A/05_uncertainty_quantification/data/AirfRANS' # local
-root = '/home/daep/e.foglia/Documents/02_UQ/01_airfrans/01_data/' # pando
+root = '/home/daep/e.foglia/Documents/1A/05_uncertainty_quantification/data/AirfRANS' # local
+# root = '/home/daep/e.foglia/Documents/02_UQ/01_airfrans/01_data/' # pando
 train_dataset = AirfRANSDataset('full',train=True, root=root, normalize=True, pre_transform=pre_transform, force_reload=False)
 mean = train_dataset.glob_mean
 std = train_dataset.glob_std
@@ -61,10 +74,19 @@ print(f' Available device: {device}')
 print( '----------------------------')
 
 model = ModelFactory.create(args).to(device)
-# model.apply(init_weights)
+if args.init == 'he':
+	custom_init = partial(init_weights, method='he')
+elif args.init == 'glorot':
+	custom_init = partial(init_weights, method='glorot')
+elif args.init == 'gaussian':
+	custom_init = partial(init_weights, method='gaussian', std=0.1)
+elif args.init == 'none':
+	custom_init = partial(init_weights, method='none')
 
-MAP_sol_file='/home/daep/e.foglia/Documents/02_UQ/01_airfrans/03_results/trained_models/MAP_simple_200_800_64_25_16.pt'
-model.load_state_dict(torch.load(MAP_sol_file))
+model.apply(custom_init)
+
+# MAP_sol_file='/home/daep/e.foglia/Documents/02_UQ/01_airfrans/03_results/trained_models/MAP_simple_200_800_64_25_16.pt'
+# model.load_state_dict(torch.load(MAP_sol_file))
 
 # model = ZigZag(
 #             node_features=n,
@@ -112,43 +134,50 @@ if args.model_type ==  'ensemble':
         optimizer='adam',
         optim_kwargs={'lr':initial_lr},
         loss_fn=loss,
-        scheduler='exponential',
-        scheduler_kwargs={'gamma':1/2,
-                          'a':1e-5, 'b':1}
+        scheduler='cosine_annealing',
+        scheduler_kwargs={'T_max':epochs,
+                          'eta_min':1e-4}
     )
 
 else:
     trainer = Trainer(
         epochs=epochs,
         model=model,
-        optimizer=SGLD,
-        optim_kwargs={'lr':args.lr,
-                      'weight_decay': 10.0,
-                      'momentum': 0.98,
-                      'temperature': 0.1,
-                      'n_data':len(train_dataset),
-                      'precond':args.precond,
-                      'precond_alpha': 0.99,
-                      'precond_eps': 1e-5},
+        # optimizer=SGLD,
+        # optim_kwargs={'lr':args.lr,
+        #               'weight_decay': 0.5/args.prior_std**2,
+        #               # 'weight_decay':0.5, #!!!
+        #               'momentum': 0.98,
+        #               'temperature': args.temperature,
+        #               'n_data':len(train_dataset),
+        #               'precond':args.precond,
+        #               'precond_alpha': 0.99,
+        #               'precond_eps': 1e-5},
+        optimizer=Adam,
+        optim_kwargs={'lr':args.lr},
         loss_fn=loss,
-        scheduler=PowerDecayLR,
-        scheduler_kwargs={'gamma':args.gamma,
-                          'a':args.lr, 'b':1},
+        scheduler=CosineAnnealingWarmRestarts,
+        scheduler_kwargs={'T_0':epochs,
+                         'eta_min':1e-4,
+                         },
+        # scheduler=PowerDecayLR,
+        # scheduler_kwargs={'gamma':args.gamma,
+        #                   'a':args.lr, 'b':1},
         device=device,
         mcmc=False,
-        save_start=50,
-        save_rate=5
+        save_start=49,
+        save_rate=50,
     )
 
 
-out_dir = '/home/daep/e.foglia/Documents/02_UQ/01_airfrans/03_results' # pando
-# out_dir = '/home/daep/e.foglia/Documents/1A/05_uncertainty_quantification/scripts/paper/UQ_airfoil/out'
+# out_dir = '/home/daep/e.foglia/Documents/02_UQ/01_airfrans/03_results' # pando
+out_dir = '/home/daep/e.foglia/Documents/1A/05_uncertainty_quantification/scripts/paper/UQ_airfoil/out'
 
-model_name = f"{args.identifier}_{args.model_type}_{args.epochs}_{args.samples}_{args.hidden}_{args.fourier}_{args.batch}_{args.lr}_{args.gamma}"
+model_name = f"{args.identifier}_{args.model_type}_{args.epochs}_{args.samples}_{args.hidden}_{args.fourier}_{args.batch}_{args.lr}_{args.gamma}_{args.blocks}_{args.prior_std}_{args.z0}"
 
 
 tic = time.time()
-trainer.fit(train_loader, test_loader, os.path.join(out_dir,'trained_models',f'{model_name}.pt'))
+trainer.fit(train_loader, test_loader, os.path.join(out_dir,'trained_models',f'{model_name}.pt'), pretrain=False)
 toc = time.time()
 
 formatted_time = time.strftime("%H:%M:%S", time.gmtime(toc-tic))
@@ -175,3 +204,5 @@ ax.set_xlabel('epoch')
 ax.set_ylabel('learning rate $l_r$')
 ax.set_title('Learing rate history')
 plt.savefig(os.path.join(out_dir,f'lr_history_{model_name}.png'), dpi=300)
+
+plt.show()

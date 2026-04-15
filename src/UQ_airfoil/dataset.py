@@ -30,6 +30,7 @@ import matplotlib.pyplot as plt
 
 import airfrans as af
 
+
 class GeometricData(Data):
     r'''Class representing a 2D geometric graph. Includes :obj:`tangents` and 
     :obj:`curvature` methods, provided that the :obj:`TangentVec` transform 

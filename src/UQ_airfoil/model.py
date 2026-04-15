@@ -16,6 +16,7 @@ import copy
 import torch
 from torch import nn
 from torch import Tensor
+from torch.nn.utils import weight_norm
 
 import torch_scatter
 
@@ -51,7 +52,7 @@ class MiniMLP(nn.Module):
         # Add the input layer
         prev_dim = inputs
         for h_dim in hidden:
-            layers.append(nn.Linear(prev_dim, h_dim))
+            layers.append(weight_norm(nn.Linear(prev_dim, h_dim)))
             prev_dim = h_dim
         
         # Add the output layer
@@ -99,9 +100,9 @@ class DropoutMLP(MiniMLP):
         Returns:
             torch.Tensor: Output tensor of shape (batch_size, targets)
         '''
-        x = self.activation(self.layers[0](x))
+        x = self.dropout(self.activation(self.layers[0](x)))
         for layer in self.layers[1:-1]:
-            x = x + self.activation(layer(x)) # add skip connections
+            x = x + self.dropout(self.activation(layer(x))) # add skip connections
         return self.layers[-1](x)
     
     
@@ -239,8 +240,9 @@ class EncodeProcessDecode(nn.Module):
 
         # processing
         for block in self.processor:
-            node_feature, edge_feature = block(node_feature, edge_index, edge_feature)
-
+            node_update, edge_update = block(node_feature, edge_index, edge_feature)
+            node_feature = node_feature + node_update
+            edge_feature = edge_feature + edge_update
         # decode node features
         y = self.decoder_nodes(node_feature)
 
@@ -329,7 +331,8 @@ class ZigZag(EncodeProcessDecode):
             else:
                 y1 = self.forward(data)
                 y2 = self.forward(data, y=y1.detach())
-            return 0.5*(y1+y2), 0.25*(y1-y2)**2
+            # return 0.5*(y1+y2), 0.25*(y1-y2)**2
+            return y1, torch.abs(y1*(y1-y2))
 
 
 class Ensemble(nn.Module):

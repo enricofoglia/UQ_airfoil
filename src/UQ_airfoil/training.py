@@ -27,7 +27,8 @@ from torch.optim import Optimizer, Adam
 from torch.optim.lr_scheduler import (
     LRScheduler,
     ExponentialLR,
-    ReduceLROnPlateau
+    ReduceLROnPlateau,
+    CosineAnnealingLR
     )
  
 from torch.nn import MSELoss, Module
@@ -76,7 +77,7 @@ class Trainer():
             weight:Optional[float]=0.01,
             mcmc:Optional[bool]=False,
             save_rate:Optional[int]=1,
-            save_start:Optional[int]=0
+            save_start:Optional[int]=0,
             ) -> None:
         
         self.epochs = epochs
@@ -106,20 +107,55 @@ class Trainer():
         self.save_rate = save_rate
 
     def fit(self, train_loader:DataLoader, test_loader:DataLoader, 
-            savefile:Optional[str]='out/best_model.pt')-> None:
+            savefile:Optional[str]='out/best_model.pt', pretrain:Optional[bool]=True)-> None:
         r'''Optimize the model. Save the best model in terms of test 
         performances in :obj:`"savefile"`.
         '''
-        print( '+----------------------------------+')
-        print( '| Training started ...             |')
-        print( '+----------------------------------+')
-        print(f'| Total number of epochs : {self.epochs:<8d}|')
-        print( '+----------------------------------+')
-
         self.training_history = []
         self.test_history = []
         self.best_loss = torch.inf
         self.lr_history = []
+
+        if pretrain:
+            # pretraing phase
+            print( '+----------------------------------+')
+            print( '| Pretraining started ...          |')
+            print( '+----------------------------------+')
+            print( '| Pretraining epochs : 100         |')
+            
+            final_temp = self.optimizer.param_groups[0]['temperature']
+            for group in self.optimizer.param_groups:
+                group['temperature'] = 0
+
+            print( '| Temperature set to 0             |')
+            print( '| No scheduler applied             |')
+            print( '+----------------------------------+')
+            
+
+            for epoch in tqdm(range(80)):
+                self.model.train()
+                self.training_history.append(self._train_epoch(train_loader, self.model))
+                self.test_history.append(self._test_epoch(test_loader, self.model))
+                self.lr_history.append(self.optimizer.param_groups[0]['lr'])
+
+            for epoch in tqdm(range(20)):
+                for group in self.optimizer.param_groups:
+                    group['temperature'] += final_temp/20.0
+
+                self.model.train()
+                self.training_history.append(self._train_epoch(train_loader, self.model))
+                self.test_history.append(self._test_epoch(test_loader, self.model))
+                self.lr_history.append(self.optimizer.param_groups[0]['lr'])
+
+        print()
+        print( '+----------------------------------+')
+        print( '| Training started ...             |')
+        print( '+----------------------------------+')
+        print(f'| Total number of epochs : {self.epochs:<8d}|')
+        print(f'| Temperature set to {self.optimizer.param_groups[0].get("temperature", torch.nan):<8.3f}      |')
+        print( '+----------------------------------+')
+
+        
 
         save_path = Path(savefile)
         for epoch in tqdm(range(self.epochs)):
@@ -127,6 +163,7 @@ class Trainer():
             self.training_history.append(self._train_epoch(train_loader, self.model))
             self.test_history.append(self._test_epoch(test_loader, self.model))
             # print(f' Current loss = {self.training_history[-1]}')
+            self.lr_history.append(self.optimizer.param_groups[0]['lr'])
 
             if self.scheduler is not None:
                 self.scheduler.step()
@@ -136,16 +173,17 @@ class Trainer():
                 torch.save(self.model.state_dict(), save_path)
 
             if self.mcmc:
-                if epoch >= self.save_start and epoch%self.save_rate == 0:
+                if epoch >= self.save_start and (epoch-self.save_start)%self.save_rate == 0:
                     sgld_path = save_path.with_name(save_path.stem 
                                                     + f'SGLD_{(epoch-self.save_start)//self.save_rate}'
                                                     + save_path.suffix)
                     torch.save(self.model.state_dict(), sgld_path)
                     self.lr_history.append(self.optimizer.param_groups[0]['lr'])
+                    print(f' SGLD saved at epoch {epoch} ')
 
                     
         if self.mcmc:
-            torch.save(torch.tensor(self.lr_history), 'learning_rate_SGLD.pt')
+            torch.save(torch.tensor(self.lr_history), f'{save_path.stem}_SGDL_lr.pt')
 
         print( '| Training ended                   |')
         print( '+----------------------------------+')
@@ -197,7 +235,7 @@ class Trainer():
                 feedback = y.unsqueeze(1)
             else:
                 pred1, feedback = model(batch, return_hidden=True)
-            pred2 = model(batch, feedback.detach())
+            pred2 =  model(batch, feedback.detach())
             loss = self.loss_fn(pred1.squeeze(), y.squeeze()) \
                         + self.loss_fn(pred2.squeeze(), y.squeeze())
             
@@ -308,6 +346,8 @@ class EnsembleTrainer(Trainer):
             self.scheduler = ReduceLROnPlateau
         elif self._scheduler == 'exponential':
             self.scheduler = ExponentialLR
+        elif self._scheduler == 'cosine_annealing':
+            self.scheduler = CosineAnnealingLR
         else:
             raise ValueError(f"Chosen scheduler '{self._scheduler}' is not currently supported")
         
@@ -321,10 +361,14 @@ class EnsembleTrainer(Trainer):
 
 
     def fit(self, train_loader:DataLoader, test_loader:DataLoader,
-             savefile:Optional[str]='out/best_model.pt')->None:
+             savefile:Optional[str]='out/best_model.pt',
+             pretrain:Optional[bool]=False)->None:
+        
         r'''Optimize the model. Save the best model in terms of test 
         performances in :obj:`"savefile"`, adding an 'ensemble' directory.
         '''
+    
+        
         print( '+----------------------------------+')
         print( '| Training started ...             |')
         print( '+----------------------------------+')
@@ -341,14 +385,44 @@ class EnsembleTrainer(Trainer):
             print( '+----------------------------------+')
             print(f'| Model {n+1:>3d}/{self.n_models:<3d} ...{" "*16}|')
             print( '+----------------------------------+')
-            
             training_history = []
             test_history = []
             lr_history = []
             self.best_loss = torch.inf
-            
+
             self._optimizer_init(model)
             self._scheduler_init()
+
+            if pretrain:
+                # pretraing phase
+                print( '+----------------------------------+')
+                print( '| Pretraining started ...          |')
+                print( '+----------------------------------+')
+                print( '| Pretraining epochs : 100         |')
+                
+                final_temp = self.optimizer.param_groups[0]['temperature']
+                for group in self.optimizer.param_groups:
+                    group['temperature'] = 0
+
+                print( '| Temperature set to 0             |')
+                print( '| No scheduler applied             |')
+                print( '+----------------------------------+')
+                
+
+                for epoch in tqdm(range(80)):
+                    self.model.train()
+                    training_history.append(self._train_epoch(train_loader, self.model))
+                    test_history.append(self._test_epoch(test_loader, self.model))
+                    lr_history.append(self.optimizer.param_groups[0]['lr'])
+
+                for epoch in tqdm(range(20)):
+                    for group in self.optimizer.param_groups:
+                        group['temperature'] += final_temp/20.0
+
+                    self.model.train()
+                    training_history.append(self._train_epoch(train_loader, self.model))
+                    test_history.append(self._test_epoch(test_loader, self.model))
+                    lr_history.append(self.optimizer.param_groups[0]['lr'])
 
             for epoch in tqdm(range(self.epochs)):
                 model.train()

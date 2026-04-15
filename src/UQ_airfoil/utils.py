@@ -1,4 +1,6 @@
 import argparse
+import inspect
+import sys
 
 import random
 
@@ -8,7 +10,28 @@ import torch
 from torch import nn
 
 from model import ZigZag, Ensemble, MCDropout, EncodeProcessDecode
+from dataset import GeometricData
 
+def set_safe_types():
+    torch_geometric_modules = [
+        module_name for module_name in sys.modules 
+        if module_name.startswith('torch_geometric')
+    ]
+
+    # Collect all classes from these modules
+    safe_classes = []
+    for module_name in torch_geometric_modules:
+        try:
+            module = sys.modules[module_name]
+            for name, obj in inspect.getmembers(module):
+                if inspect.isclass(obj):
+                    safe_classes.append(obj)
+        except:
+            pass
+
+    safe_classes += [GeometricData]
+    # Add all collected classes to safe globals
+    torch.serialization.add_safe_globals(safe_classes)
 
 def count_parameters(model):
     if model.kind == 'ensemble':
@@ -39,7 +62,10 @@ class Parser:
         self.parser.add_argument('--gamma', '-g', type=float, default=1/2, help='exponent of power LR decay')
         self.parser.add_argument('--lr', type=float, default=1e-3, help='initial learning rate')
         self.parser.add_argument('--precond', action='store_true', help='use RMSprop preconditioner')
-
+        self.parser.add_argument('--blocks', type=int, default=4, help='number of processing blocks')
+        self.parser.add_argument('--prior_std', type=float, default=0.1, help='prior distribution standard deviation')
+        self.parser.add_argument('--init', type=str, default='none', help='initialization method')
+        self.parser.add_argument('--temperature', '-T', type=float, default=1.0, help='posterior temperature')
         self.args = self.parser.parse_args()
         if print: self.message()
 
@@ -55,10 +81,14 @@ class Parser:
         print(f'| Epochs        | {self.args.epochs:>10d} |')
         print(f'| Samples       | {self.args.samples:>10d} |')
         print(f'| Hidden units  | {self.args.hidden:>10d} |')
+        print(f'| Blocks        | {self.args.blocks:>10d} |')
         print(f'| Fourier modes | {self.args.fourier:>10d} |')
         print(f'| Batch size    | {self.args.batch:>10d} |')
         print(f'| LR            | {self.args.lr:>10.2e} |')
         print(f'| Gamma         | {self.args.gamma:>10.3f} |')
+        print(f'| Prior std     | {self.args.prior_std:>10.3f} |')
+        print(f'| Temperature   | {self.args.temperature:>10.2e} |')
+        print(f'| Initialization| {self.args.init:>10s} |')
         print(f'| Precond       | {"yes" if self.args.precond else "no":>10s} |')
         if self.args.model_type == 'ensemble':
             print(f'| Ensemble size | {self.args.ens_size:>10d} |')
@@ -95,7 +125,7 @@ class ModelFactory:
     def _model_parameters(args) -> dict:
         model_dict = {
             'edge_features': 3,
-            'n_blocks': 4,
+            'n_blocks': args.blocks,
             'out_nodes': 1,
             'out_glob': 0
         }
@@ -115,7 +145,7 @@ class ModelFactory:
 
         return model_dict
 
-def init_weights(m, std=0.1):
+def init_weights(m, method='none', std=0.1):
     """
     Initializes the weights of a PyTorch module with a Gaussian distribution.
     
@@ -123,7 +153,42 @@ def init_weights(m, std=0.1):
         m (torch.nn.Module): The module to initialize the weights for.
     """
     if isinstance(m, nn.Linear) or isinstance(m, nn.Conv2d):
-        torch.nn.init.normal_(m.weight, mean=0.0, std=std)
+        if method == 'gaussian':
+                torch.nn.init.normal_(m.weight, mean=0.0, std=std)
+        elif method == 'he':
+                torch.nn.init.kaiming_normal_(m.weight, nonlinearity='relu')
+        elif method == 'glorot':
+                torch.nn.init.xavier_normal_(m.weight)
+        else:
+                pass
         if m.bias is not None:
             torch.nn.init.constant_(m.bias, 0)    
-   
+
+
+def compute_lift(cp, x, y, c=1.0, rho=1.0, U=1.0):
+    """
+    Computes the lift force on an airfoil using the pressure integration method.
+    
+    Args:
+        cp (numpy.ndarray): The pressure coefficient.
+        x (numpy.ndarray): The x-coordinates of the airfoil surface.
+        y (numpy.ndarray): The y-coordinates of the airfoil surface.
+        c (float): The chord length of the airfoil.
+        rho (float): The density of the fluid (default is 1.0).
+        U (float): The freestream velocity (default is 1.0).
+        
+    Returns:
+        float: The lift force on the airfoil.
+    """
+    # Calculate segment lengths and directions
+    deltax = x - np.roll(x, 1)
+    deltay = y - np.roll(y, 1)
+    l = np.sqrt(deltax**2 + deltay**2)
+    
+    ny = deltax / l
+    
+    cp_avg = 0.5 * (cp + np.roll(cp, 1))
+
+    fy = 0.5 * c * rho * U**2 * np.sum(cp_avg * ny * l)
+        
+    return fy
